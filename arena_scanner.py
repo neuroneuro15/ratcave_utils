@@ -4,9 +4,13 @@ import numpy as np
 from sklearn import mixture
 from sklearn.decomposition import PCA
 
-from ratcave import graphics
+import ratcave as rc
 from ratcave import utils
-from ratcave.graphics._transformations import rotation_matrix
+from ratcave._transformations import rotation_matrix
+from plotting import plot_3d
+import filters, orienting, hardware
+
+from psychopy import visual
 
 import motive
 
@@ -19,21 +23,21 @@ def scan(pointwidth=.06):
     rigid body data into a pickled file."""
 
     # Initialize Calibration Point Grid.
-    wavefront_reader = graphics.WavefrontReader(ratcave.graphics.resources.obj_primitives)
-    mesh = wavefront_reader.get_mesh('Grid', centered=True, lighting=False, scale=1.5, drawstyle='point', point_size=12, position=(0,0,-1))
-    mesh.material.diffuse.rgb = 1, 1, 1
+    wavefront_reader = rc.WavefrontReader(rc.resources.obj_primitives)
+    mesh = wavefront_reader.get_mesh('Grid', scale=1.5, drawstyle='point', point_size=12, position=(0,0,-1))
+    # mesh.material.diffuse.rgb = 1, 1, 1
 
-    scene = graphics.Scene([mesh])
+    scene = rc.Scene([mesh], bgColor=(0,0,0))
     scene.camera.ortho_mode = True
-    window = graphics.Window(scene, screen=1, fullscr=True)
+    window = visual.Window(screen=1, fullscr=True)
 
     # Main Loop
     old_frame, clock, points = motive.frame_time_stamp(), utils.timers.countdown_timer(3.), []
     for theta in np.linspace(0, 2*np.pi, 40)[:-1]:
 
         # Update Screen
-        scene.camera.position[:2] = (pointwidth * np.sin(theta)), (pointwidth * np.cos(theta))
-        window.draw()
+        scene.camera.position = (pointwidth * np.sin(theta)), (pointwidth * np.cos(theta)), -1
+        scene.draw()
         window.flip()
 
         # Collect New Tracker Data
@@ -221,14 +225,14 @@ def meshify(points, n_surfaces=None):
     # Remove Obviously Bad Points according to how far away from main cluster they are
     histmask = np.ones(points.shape[0], dtype=bool)  # Initializing mask with all True values
     for coord in range(3):
-        histmask &= utils.hist_mask(points[:, coord], keep='middle')
+        histmask &= filters.hist_mask(points[:, coord], keep='middle')
     points_f = points[histmask, :]
 
     # Get the normals of the N-Neighborhood around each point, and filter out points with lowish planarity
     normals_f, explained_variances = normal_nearest_neighbors(points_f)
 
     # Histogram filter: take the 70% best-planar data to model.
-    normfilter = utils.hist_mask(explained_variances[:, 2], threshold=.7, keep='lower')
+    normfilter = filters.hist_mask(explained_variances[:, 2], threshold=.7, keep='lower')
     points_ff = points_f[normfilter, :]
     normals_ff = normals_f[normfilter, :]
 
@@ -258,7 +262,6 @@ def meshify(points, n_surfaces=None):
 if __name__ == '__main__':
 
     import argparse
-    import ratcave
     from os import path
 
     # Get command line inputs
@@ -286,9 +289,9 @@ if __name__ == '__main__':
     # Select Rigid Body to track.
     motive.load_project(args.motive_projectfile)
     print("Loaded Motive Project: {}".format(args.motive_projectfile))
-    utils.motive_camera_vislight_configure()
+    hardware.motive_camera_vislight_configure()
     print("Camera Settings changed to Detect Visible light:")
-    print("\n\t".join(['{}: FPS={}, Gain={}, Exp.={}, Thresh.={}'.format(cam.name, cam.frame_rate, cam.image_gain, cam.exposure, cam.threshold) for cam in motive.get_cams()]))
+    print("\t"+"\n\t".join(['{}: FPS={}, Gain={}, Exp.={}, Thresh.={}'.format(cam.name, cam.frame_rate, cam.image_gain, cam.exposure, cam.threshold) for cam in motive.get_cams()]))
 
     motive.update()
 
@@ -321,7 +324,13 @@ if __name__ == '__main__':
     # Rotate all points to be mean-centered and aligned to Optitrack Markers direction or largest variance.
     markers = np.array(rigid_bodies[arena_name].point_cloud_markers)
     points = points - np.mean(markers, axis=0) if args.mean_center else points
-    points = np.dot(points,  rotation_matrix(np.radians(utils.rotate_to_var(markers)), [0, 1, 0])[:3, :3]) if args.pca_rotate else points # TODO: RE-ADD PCA Rotation!
+    points = np.dot(points,  rotation_matrix(np.radians(orienting.rotate_to_var(markers)), [0, 1, 0])[:3, :3]) if args.pca_rotate else points # TODO: RE-ADD PCA Rotation!
+
+    # Plot preview of data collected
+    from matplotlib import pyplot as plt
+    plot_3d(points, square_axis=True)
+    plt.show()
+
 
     # Get vertex positions and normal directions from the collected data.
     vertices, normals = meshify(points, n_surfaces=args.n_sides)
@@ -331,7 +340,8 @@ if __name__ == '__main__':
     wave_str = data_to_wavefront(arena_name, vertices, normals)
 
     # Write to app data directory
-    with open(path.join(ratcave.data_dir, 'arena.obj'), 'wb') as wavfile:
+    # with open(path.join(rc.data_dir, 'arena.obj'), 'wb') as wavfile:
+    with open('arena.obj', 'wb') as wavfile:
         wavfile.write(wave_str)
     # If specified, optionally also save .obj file to another directory.
     if args.save_filename:
@@ -339,7 +349,7 @@ if __name__ == '__main__':
             wavfile.write(wave_str)
 
     # Show resulting plot with points and model in same place.
-    ax = utils.plot_3d(points[::12, :], square_axis=True)
+    ax = plot_3d(points[::12, :], square_axis=True)
     for idx, verts in vertices.items():
         show = True if idx == len(vertices)-1 else False  # Only make the plot appear after the last face is drawn.
-        ax = utils.plot_3d(np.vstack((verts, verts[0, :])), ax=ax, title='Triangulated Model', line=True, show=show)
+        ax = plot_3d(np.vstack((verts, verts[0, :])), ax=ax, title='Triangulated Model', line=True, show=show)
