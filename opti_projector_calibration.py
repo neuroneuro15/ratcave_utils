@@ -6,15 +6,16 @@ import time
 import numpy as np
 import progressbar as pb
 
-import ratcave
-import ratcave.graphics as gg
+import ratcave as rc
 import ratcave.utils as utils
+from ratcave.utils import timers
 
 import motive
 
-from ratcave.utils import plot_3d, timers
+import hardware, filters
+from plotting import plot_3d
 
-from psychopy import event
+from psychopy import event, visual
 
 np.set_printoptions(precision=3, suppress=True)
 
@@ -23,27 +24,27 @@ def setup_projcal_window():
     """Returns Window with everything needed for doing projector calibration."""
 
     # Setup graphics
+    window = visual.Window(screen=1, fullscr=True)
 
-    wavefront_reader = gg.WavefrontReader(ratcave.graphics.resources.obj_primitives)
-    circle = wavefront_reader.get_mesh('Sphere', centered=True, lighting=False, position=[0., 0., -1.], scale=.008)
-    circle.material.diffuse.rgb = 1, 1, 1  # Make white
+    wavefront_reader = rc.WavefrontReader(rc.resources.obj_primitives)
+    circle = wavefront_reader.get_mesh('Sphere', position=[0., 0., -1.], scale=.015)
+    # circle.material.diffuse.rgb = 1, 1, 1  # Make white
 
-    scene = gg.Scene([circle])
+    scene = rc.Scene([circle], bgColor=(0,0,0))
     scene.camera.ortho_mode = True
-    window = gg.Window(scene, screen=1, fullscr=True)
 
-    return window
+    return window, scene
 
-def slow_draw(window, sleep_time=.05):
+def slow_draw(window, scene, sleep_time=.05):
         """Draws the window contents to screen, then blocks until tracker data updates."""
-        window.draw()
+        scene.draw()
         window.flip()
         time.sleep(sleep_time)
 
 
-def random_scan(window, n_points=300):
+def random_scan(window, scene, n_points=300):
 
-    circle = window.active_scene.meshes[0]
+    circle = scene.root.children[0]
     screenPos, pointPos = [], []
     collect_fmt, missed_fmt, missed_cnt = ", Points Collected: ", ", Points Missed: ", 0
     pbar = pb.ProgressBar(widgets=[pb.Bar(), pb.ETA(), collect_fmt +'0', missed_fmt+'0'], maxval=n_points)
@@ -53,18 +54,20 @@ def random_scan(window, n_points=300):
         # Update position of circle, and draw.
         circle.visible = True
         homogenous_pos = np.random.random(2) - .5
-        circle.local.x, circle.local.y = homogenous_pos * [1.8, 1]
-        slow_draw(window)
+        circle.x, circle.y = homogenous_pos * [1.8, 1]
+        slow_draw(window, scene)
         motive.update()
 
         # Try to isolate a single point.
         for _ in timers.countdown_timer(.2, stop_iteration=True):
+            motive.flush_camera_queues()
             motive.update()
             markers = motive.get_unident_markers()
             if markers and markers[0][1] > 0.:
-                screenPos.append(circle.local.position[:2])
+                screenPos.append(circle.position[:2])
                 # Update Progress Bar
                 pointPos.append(markers[0])
+
                 pbar.widgets[2] = collect_fmt + str(len(pointPos))
                 pbar.update(len(pointPos))
                 break
@@ -76,10 +79,12 @@ def random_scan(window, n_points=300):
 
         # Hide circle, and wait again for a new update.
         circle.visible = False
-        slow_draw(window)
+        slow_draw(window, scene)
         motive.update()
+        motive.flush_camera_queues()
         while len(motive.get_unident_markers()) > 0:
             motive.update()
+            motive.flush_camera_queues()
 
     return np.array(screenPos), np.array(pointPos)
 
@@ -92,7 +97,7 @@ def ray_scan(window):
     # Do some non-random points to so human can change height range.
     pointPos, screenPos = [], []
     for pos in [(0, 0), (-.5, 0), (.5, 0)]:
-        circle.local.x, circle.local.y = pos
+        circle.x, circle.y = pos
         window.draw()
         window.flip()
         for _ in timers.countdown_timer(5, stop_iteration=True):
@@ -101,7 +106,7 @@ def ray_scan(window):
             old_time = motive.frame_time_stamp()
             if motive.frame_time_stamp() > old_time + .3 and len(markers) == 1:
                 if markers[0][1] > 0.1:
-                    screenPos.append(circle.local.position[:2])
+                    screenPos.append(circle.position[:2])
                     pointPos.append(markers[0])
                     old_time = motive.frame_time_stamp()
 
@@ -152,7 +157,7 @@ if __name__ == '__main__':
     import pickle
     import argparse
 
-    app_data_file = os.path.join(ratcave.data_dir, 'projector_data_points')
+    app_data_file = 'projector_data_points'
 
     # Get command line inputs
     parser = argparse.ArgumentParser(description='Projector Calibration script. Projects a random dot pattern and calculates projector position.')
@@ -194,7 +199,7 @@ if __name__ == '__main__':
     if not args.debug_mode:
 
         # Setup Graphics
-        window = setup_projcal_window()
+        window, scene = setup_projcal_window()
 
         # If the experimenter needs to enter the room, give them a bit of time to get inside.
         if args.human_scan:
@@ -202,16 +207,16 @@ if __name__ == '__main__':
 
         # Collect random points for calibration.
         motive.load_project(args.motive_projectfile)
-        utils.motive_camera_vislight_configure()
+        hardware.motive_camera_vislight_configure()
 
-        screenPos, pointPos = random_scan(window, n_points=args.n_points)
+        screenPos, pointPos = random_scan(window, scene, n_points=args.n_points)
 
         print("Size of Point Data: {}".format(pointPos.shape))
 
         # Remove Obviously Bad Points according to how far away from main cluster they are
         histmask = np.ones(pointPos.shape[0], dtype=bool)  # Initializing mask with all True values
         for coord in range(3):
-            histmask &= utils.hist_mask(pointPos[:, coord], keep='middle')
+            histmask &= filters.hist_mask(pointPos[:, coord], keep='middle')
         pointPos = pointPos[histmask, :]
         screenPos = screenPos[histmask, :]
 
@@ -248,6 +253,11 @@ if __name__ == '__main__':
             assert isinstance(data, dict) and 'imgPoints' in data.keys() and 'objPoints' in data.keys(), "Loaded Datafile in wrong format. See help for more info."
             screenPos, pointPos = data['imgPoints'], data['objPoints']
 
+    import matplotlib.pyplot as plt
+    plot_3d(pointPos, square_axis=True)
+    plt.show()
+
+
     # Calibrate projector data
     position, rotation = calibrate(screenPos, pointPos)
     if not args.silent_mode:
@@ -257,7 +267,7 @@ if __name__ == '__main__':
     if not args.test_mode:
         # Save Data in format for putting into a ratcave.graphics.Camera
         projector_data = {'position': position, 'rotation': rotation, 'fov_y': args.fov_y}
-        with open(os.path.join(ratcave.data_dir, 'projector_data.pickle'), "wb") as datafile:
+        with open('projector_data.pickle', "wb") as datafile:
             pickle.dump(projector_data, datafile)
 
     ## Plot Data
