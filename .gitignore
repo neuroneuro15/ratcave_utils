@@ -58,3 +58,6 @@ target/
 
 # Gedit
 *~
+
+# PyCharm
+.idea
