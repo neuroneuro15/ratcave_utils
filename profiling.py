@@ -5,16 +5,19 @@ import numpy as np
 from collections import deque
 
 #Inputs
-OBJ_NAME = 'Monkey'
-NUM_OBJECTS = 8
+OBJ_NAME = 'Cube'
+NUM_OBJECTS = 20
 USE_CUBEMAP = True
 CUBEMAP_TEXTURE_SIZE = 2048
 HAS_UNIFORMS = True
 IS_MOVING = True
 ROLLING_WINDOW_LEN = 30
+FULLSCREEN = True
+ANTIALIAS = True
+
 
 # Create Window
-window = pyglet.window.Window(resizable=True, vsync=False, fullscreen=True)
+window = pyglet.window.Window(resizable=True, vsync=False, fullscreen=FULLSCREEN)
 
 # Generate Objects
 reader = rc.WavefrontReader(rc.resources.obj_primitives)
@@ -54,22 +57,48 @@ cubetexture = rc.TextureCube(width=CUBEMAP_TEXTURE_SIZE, height=CUBEMAP_TEXTURE_
 screen.texture = cubetexture
 fbo_cube = rc.FBO(cubetexture)
 
+
+aaShader = rc.resources.aaShader
+aa_texture = rc.Texture()
+fbo_aa = rc.FBO(aa_texture)
+
+fullscreen_quad = rc.resources.gen_fullscreen_quad()
+fullscreen_quad.texture = aa_texture
+
 # Run Display and Update Loops
 @window.event
 def on_resize(width, height):
     # proj_scene.camera.aspect = width / float(height)
     god_scene.camera.aspect = width / float(height)
+    fullscreen_quad.uniforms['frameBufSize'] = float(width), float(height)
 
 @window.event
 def on_draw():
-    # proj_scene.draw()
+
     window.clear()
     if USE_CUBEMAP:
         with fbo_cube:
             proj_scene.draw360_to_texture(cubetexture)
-        god_scene.draw()
+        if ANTIALIAS:
+            with fbo_aa:
+                god_scene.draw()
+            with aaShader:
+                fullscreen_quad._draw(shader=aaShader)
+        else:
+            god_scene.draw()
+
     else:
-        proj_scene.draw()
+        if ANTIALIAS:
+            with fbo_aa:
+                proj_scene.draw()
+                proj_scene.draw()
+            with aaShader:
+                fullscreen_quad._draw(shader=aaShader)
+        else:
+            proj_scene.draw()
+
+
+
     label_fps.draw()
 
 

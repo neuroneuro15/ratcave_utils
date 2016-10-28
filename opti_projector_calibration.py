@@ -31,8 +31,9 @@ def setup_projcal_window():
     # circle.material.diffuse.rgb = 1, 1, 1  # Make white
 
     scene = rc.Scene([circle], bgColor=(0,0,0))
-    scene.camera.ortho_mode = True
-
+    # scene.camera.ortho_mode = True
+    # scene.camera.update_view_matrix()
+    #
     return window, scene
 
 def slow_draw(window, scene, sleep_time=.05):

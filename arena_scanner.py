@@ -6,7 +6,7 @@ from sklearn.decomposition import PCA
 
 import ratcave as rc
 from ratcave import utils
-from ratcave._transformations import rotation_matrix
+from _transformations import rotation_matrix
 from plotting import plot_3d
 import filters, orienting, hardware
 
