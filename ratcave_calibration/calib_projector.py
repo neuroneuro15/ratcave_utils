@@ -1,46 +1,34 @@
 __author__ = 'nickdg'
 
-import click
-
-import pyglet
-import cv2
-import time
-import numpy as np
-import progressbar as pb
 import random
-import ratcave as rc
-import hardware, filters
+
+import click
+import cv2
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import motive
+import numpy as np
+import pyglet
+import ratcave as rc
+
+import hardware
 
 np.set_printoptions(precision=3, suppress=True)
 
 
-import motive
-motive.load_project('Lat2 - Copy - Copy.ttp')
-motive.update()
-hardware.motive_camera_vislight_configure()
-motive.update()
-
-
-import numpy as np
 
 
 class PointScanWindow(pyglet.window.Window):
 
-    def __init__(self, fps=15, max_points=100, *args, **kwargs):
+    def __init__(self, max_points=1000, *args, **kwargs):
         """
         Returns Window with everything needed for doing projector calibration.
 
         Keyword Args:
-            -fps (int): frames per second the app runs at
             -max_points (int): total number of data points to collect before exiting.
 
         """
         super(PointScanWindow, self).__init__(*args, **kwargs)
-
-        pyglet.clock.schedule(self.update)
-        self.fps = fps
 
         wavefront_reader = rc.WavefrontReader(rc.resources.obj_primitives)
         self.mesh = wavefront_reader.get_mesh('Sphere', position=[0., 0., -1.], scale=.01)
@@ -56,22 +44,9 @@ class PointScanWindow(pyglet.window.Window):
         pyglet.clock.schedule(self.detect_projection_point)
         pyglet.clock.schedule(self._close_if_max_points_reached)
 
-    def update(self, *args):
-        pass
-
-    @property
-    def fps(self):
-        return self.__fps
-
-    @fps.setter
-    def fps(self, value):
-        pyglet.clock.set_fps_limit(value)
-        self.__fps = value
-
     def _close_if_max_points_reached(self, dt):
         if len(self.screen_pos) >= self.max_points:
             self.close()
-            print('Reaching {} points. Closing Window...'.format(self.max_points))
 
     def randomly_move_point(self, xlim=(-.9, .9), ylim=(-.5, .5)):
         """Randomly moves the mesh center to somewhere between xlim and ylim"""
@@ -92,44 +67,45 @@ class PointScanWindow(pyglet.window.Window):
             motive.update()
 
         markers = motive.get_unident_markers()
+        markers = [marker for marker in markers if marker[1] < 0.50 and marker[1] > 0.08]
         if len(markers) == 1:
-            print(markers)
+            click.echo(markers)
             self.screen_pos.append([self.mesh.x, self.mesh.y])
             self.marker_pos.append(markers[0])
 
 
 
-@click.group()
-def scan():
-    pass
 
 
-@scan.command()
+@click.command()
+@click.argument('motive_filename', type=click.Path(exists=True))
 @click.option('--debug', default=False, help='Display window only (no logging)')
 @click.option('--points', default=100, help="Number of data points to collect before estimating position")
-def run(debug, points):
+@click.option('--fps', default=15, help="Frame rate to update window at.")
+def run(motive_filename, debug, points, fps):
+
+
+    motive_filename = motive_filename.encode()
+
+    motive.load_project(motive_filename)
+    hardware.motive_camera_vislight_configure()
+
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[1]
+
+
+    pyglet.clock.set_fps_limit(fps)
     window = PointScanWindow(screen=screen, fullscreen=True, max_points=points)
+
 
     pyglet.app.run()
     pos, rotmat = calibrate(window.screen_pos, window.marker_pos)
-    print(pos)
-    print(rotmat)
+    click.echo(pos)
+    click.echo(rotmat)
     plot2d(window.screen_pos, window.marker_pos)
 
     plot_estimate(obj_points=window.marker_pos, position=pos, rotation_matrix=rotmat)
 
-
-@scan.command()
-@click.option('--name', help='Name of rigidBody to track')
-def trackbody(name):
-
-
-    body = motive.get_rigid_bodies()[name]
-    while True:
-        motive.update()
-        print(body.location)
 
 
 
@@ -210,4 +186,4 @@ def plot2d(img_points, obj_points):
 
 
 if __name__ == '__main__':
-    scan()
+    run()

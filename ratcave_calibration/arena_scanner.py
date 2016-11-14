@@ -1,19 +1,19 @@
 __author__ = 'nickdg'
 
+from _transformations import rotation_matrix
+
+import motive
 import numpy as np
+import ratcave as rc
+from psychopy import visual
+from ratcave import utils
 from sklearn import mixture
 from sklearn.decomposition import PCA
 
-import ratcave as rc
-from ratcave import utils
-from _transformations import rotation_matrix
+import filters
+import orienting
 from plotting import plot_3d
-import filters, orienting, hardware
-
-from psychopy import visual
-
-import motive
-
+from ratcave_calibration import hardware
 
 np.set_printoptions(precision=3, suppress=True)
 
@@ -262,7 +262,6 @@ def meshify(points, n_surfaces=None):
 if __name__ == '__main__':
 
     import argparse
-    from os import path
 
     # Get command line inputs
     parser = argparse.ArgumentParser(description="This is the RatCAVE arena scanner script.  It projects a dot pattern and collects the positions of the dots.")

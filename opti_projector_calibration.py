@@ -1,21 +1,17 @@
 __author__ = 'nickdg'
 import os
-import cv2
-
 import time
+
+import cv2
+import motive
 import numpy as np
 import progressbar as pb
-
 import ratcave as rc
-import ratcave.utils as utils
+from psychopy import event, visual
 from ratcave.utils import timers
 
-import motive
-
-import hardware, filters
 from plotting import plot_3d
-
-from psychopy import event, visual
+from ratcave_calibration import hardware, filters
 
 np.set_printoptions(precision=3, suppress=True)
 
