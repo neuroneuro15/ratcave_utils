@@ -1,3 +1,4 @@
+import click
 import pyglet
 import ratcave as rc
 import numpy as np
@@ -29,4 +30,11 @@ def update(dt):
     pass
 pyglet.clock.schedule(update)
 
-pyglet.app.run()
+@click.command()
+def run():
+    """Displays dot pattern on second screen.  Useful for checking that Motive is detecting the dots."""
+    pyglet.app.run()
+
+
+if __name__ == '__main__':
+    run()

@@ -2,9 +2,16 @@ __author__ = 'nickdg'
 
 from _transformations import rotation_matrix
 
+from os import path
+import click
 import motive
 import numpy as np
+import pyglet
 import ratcave as rc
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+
 from psychopy import visual
 from ratcave import utils
 from sklearn import mixture
@@ -15,47 +22,138 @@ import orienting
 from plotting import plot_3d
 from ratcave_calibration import hardware
 
+
 np.set_printoptions(precision=3, suppress=True)
 
 
-def scan(pointwidth=.06):
-    """Project a series of points onto the arena, collect their 3d position, and save them and the associated
-    rigid body data into a pickled file."""
+class GridScanWindow(pyglet.window.Window):
 
-    # Initialize Calibration Point Grid.
-    wavefront_reader = rc.WavefrontReader(rc.resources.obj_primitives)
-    mesh = wavefront_reader.get_mesh('Grid', scale=1.5, drawstyle='point', point_size=12, position=(0,0,-1))
-    # mesh.material.diffuse.rgb = 1, 1, 1
+    def __init__(self, *args, **kwargs):
+        """
+        Returns Window with everything needed for doing arena scanning.  Will automatically close when all camera movement
+        has completed.
+        """
+        super(GridScanWindow, self).__init__(*args, **kwargs)
 
-    scene = rc.Scene([mesh], bgColor=(0,0,0))
-    scene.camera.ortho_mode = True
-    window = visual.Window(screen=1, fullscr=True)
+        wavefront_reader = rc.WavefrontReader(rc.resources.obj_primitives)
+        self.mesh = wavefront_reader.get_mesh('Grid', position=[0., 0., -1.], scale=1.5, point_size=12, drawstyle='point')
+        self.mesh.uniforms['diffuse'] = [1., 1., 1.]  # Make white
+        self.mesh.uniforms['flat_shading'] = True
 
-    # Main Loop
-    old_frame, clock, points = motive.frame_time_stamp(), utils.timers.countdown_timer(3.), []
-    for theta in np.linspace(0, 2*np.pi, 40)[:-1]:
+        self.scene = rc.Scene([self.mesh], bgColor=(0, 0, 0))
+        self.scene.camera.ortho_mode = True
 
-        # Update Screen
-        scene.camera.position = (pointwidth * np.sin(theta)), (pointwidth * np.cos(theta)), -1
-        scene.draw()
-        window.flip()
+        self.cam_positions = self.gen_camera_positions()
 
-        # Collect New Tracker Data
-        old_frame = motive.frame_time_stamp()
-        while motive.frame_time_stamp() == old_frame:
-            motive.flush_camera_queues()
+        self.marker_pos = []
+        pyglet.clock.schedule(self.detect_projection_point)
+        pyglet.clock.schedule(self.move_camera)
+
+    def gen_camera_positions(self, pointwidth=0.06):
+        """Generator that returns the next camera position, which moves in a circle"""
+        for theta in np.linspace(0, 2*np.pi, 40)[:-1]:
+            yield (pointwidth * np.sin(theta)), (pointwidth * np.cos(theta)), -1
+
+    def move_camera(self, dt):
+        """Randomly moves the mesh center to somewhere between xlim and ylim"""
+        try:
+            self.scene.camera.position = next(self.cam_positions)
+        except StopIteration:
+            print("End of Camera Position list reached. Closing window...")
+            pyglet.clock.unschedule(self.detect_projection_point)
+            self.close()
+
+    def on_draw(self):
+        """Render the scene!"""
+        self.scene.draw()
+
+    def detect_projection_point(self, dt):
+        """Use Motive to detect the projected mesh in 3D space"""
+        motive.flush_camera_queues()
+        for el in range(2):
             motive.update()
 
-        # Collect 3D points from Tracker
         markers = motive.get_unident_markers()
-        if markers:
-            points.extend(markers)
+        markers = [marker for marker in markers if 0.08 < marker[1] < 0.50]
 
-    # Housekeeping
-    window.close()
+        click.echo("{} markers detected.".format(len(markers)))
+        self.marker_pos.extend(markers)
 
-    # Data quality checks and return.
-    return np.array(points)
+
+@click.command()
+@click.argument('motive_filename', type=click.Path(exists=True))
+@click.argument('output_filename', type=click.Path())
+@click.option('--body', help='Name of arena rigidbody to track', default='arena')
+@click.option('--nomeancenter', help='Flag: Skips mean-centering of arena.', type=bool, default=False)
+@click.option('--nopca', help='Flag: skips PCA-based arena marker rotation (used for aligning IR markers to image points)', type=bool, default=False)
+@click.option('--nsides', help='Number of Arena Sides.  If not given, will be estimated from data.', type=int, default=0)
+def run(motive_filename, output_filename, body, nomeancenter, nopca, nsides):
+    """Runs Arena Scanning algorithm."""
+
+    output_filename = output_filename + '.obj' if not path.splitext(output_filename)[1] else output_filename
+    assert path.splitext(output_filename)[1] == '.obj', "Output arena filename must be a Wavefront (.obj) file"
+
+    # Load Motive Project File
+    motive_filename = motive_filename.encode()
+    motive.load_project(motive_filename)
+    hardware.motive_camera_vislight_configure()
+    motive.update()
+
+    # Get Arena's Rigid Body
+    rigid_bodies = motive.get_rigid_bodies()
+    assert body in rigid_bodies, "RigidBody {} not found in project file.  Available body names: {}".format(body, list(rigid_bodies.keys()))
+    assert len(rigid_bodies[body].markers) > 5, "At least 6 markers in the arena's rigid body is required. Only {} found".format(len(rigid_bodies[body].markers))
+
+
+    # TODO: Fix bug that requires scanning be done in original orientation (doesn't affect later recreation, luckily.)
+    for attempt in range(3):  # Sometimes it doesn't work on the first try, for some reason.
+        rigid_bodies[body].reset_orientation()
+        motive.update()
+        if sum(np.abs(rigid_bodies[body].rotation)) < 1.:
+            break
+    else:
+        raise ValueError("Rigid Body Orientation not Resetting to 0,0,0 after 3 attempts.  This happens sometimes (bug), please just run the script again.")
+
+    # Scan points
+    display = pyglet.window.get_platform().get_default_display()
+    screen = display.get_screens()[1]
+    window = GridScanWindow(screen=screen, fullscreen=True)
+    pyglet.app.run()
+    points = np.array(window.marker_pos)
+    assert(len(points) > 100), "Only {} points detected.  Tracker is not detecting enough points to model.  Is the projector turned on?".format(len(points))
+    assert points.ndim == 2
+
+    # Rotate all points to be mean-centered and aligned to Optitrack Markers direction or largest variance.
+    markers = np.array(rigid_bodies[body].point_cloud_markers)
+    if not nomeancenter:
+        points -= np.mean(markers, axis=0)
+    if not nopca:
+        points = np.dot(points, rotation_matrix(np.radians(orienting.rotate_to_var(markers)), [0, 1, 0])[:3, :3])
+
+    # Plot preview of data collected
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(*points.T)
+    plt.show()
+
+    # Get vertex positions and normal directions from the collected data.
+    vertices, normals = meshify(points, n_surfaces=nsides)
+    vertices = {wall: fan_triangulate(reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
+
+    # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
+    wave_str = data_to_wavefront(body, vertices, normals)
+
+    # Write to output file
+    with open(output_filename, 'wb') as wavfile:
+        wavfile.write(wave_str)
+
+    # Show resulting plot with points and model in same place.
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(*points[::12, :].T)
+    for idx, verts in vertices.items():
+        ax.plot(*np.vstack((verts, verts[0, :])).T)
+    plt.show()
 
 
 
@@ -252,6 +350,7 @@ def meshify(points, n_surfaces=None):
     surface_offsets = np.zeros_like(surface_normals)
     for idx in range(len(surface_normals)):
         surface_offsets[idx, :] = np.mean(points_ff[ids==idx, :], axis=0)
+
     assert not np.isnan(surface_offsets.sum()), "Incorrect model: No Points found to assign to at least one wall for intersection calculation."
 
     ## CALCULATE PLANE INTERSECTIONS TO GET VERTICES ##
@@ -260,95 +359,4 @@ def meshify(points, n_surfaces=None):
 
 
 if __name__ == '__main__':
-
-    import argparse
-
-    # Get command line inputs
-    parser = argparse.ArgumentParser(description="This is the RatCAVE arena scanner script.  It projects a dot pattern and collects the positions of the dots.")
-    parser.add_argument('-o', action='store', dest='save_filename', default='',
-                        help='Additional Filename to save Arena Wavefront .obj data to.')
-
-    parser.add_argument('-n', action='store', dest='n_sides', default=0, type=int,
-                        help='Number of Sides the Arena has. (If none given, will automatically search for best fit.')
-
-    parser.add_argument('-p', action='store_false', dest='pca_rotate', default=True,
-                        help='If this flag is present, there will NOT be a pca rotation of the mesh based on its markers.')
-
-    parser.add_argument('-m', action='store_false', dest='mean_center', default=True,
-                        help='If this flag is present, the arena will be NOT offset by its mean marker position.')
-
-    parser.add_argument('-r', action='store', dest='rigid_body_name', default='',
-                        help='Name of the Arena rigid body. If only one rigid body is present, unnecessary--that one will be used automatically.')
-
-    parser.add_argument('-i', action='store', dest='motive_projectfile', default=motive.utils.backup_project_filename,
-                        help='Name of the motive project file to load.  If not used, will load most recent Project file loaded in MotivePy.')
-
-    args = parser.parse_args()
-
-    # Select Rigid Body to track.
-    motive.load_project(args.motive_projectfile)
-    print("Loaded Motive Project: {}".format(args.motive_projectfile))
-    hardware.motive_camera_vislight_configure()
-    print("Camera Settings changed to Detect Visible light:")
-    print("\t"+"\n\t".join(['{}: FPS={}, Gain={}, Exp.={}, Thresh.={}'.format(cam.name, cam.frame_rate, cam.image_gain, cam.exposure, cam.threshold) for cam in motive.get_cams()]))
-
-    motive.update()
-
-    rigid_bodies = motive.get_rigid_bodies()
-    try:
-        if not args.rigid_body_name:
-            assert len(rigid_bodies) == 1, "Only one rigid body should be present for auto-selection. Please use the -r flag to specify a rigid body name to track for the arena."
-        arena_name = args.rigid_body_name if args.rigid_body_name in rigid_bodies else rigid_bodies.keys()[0]
-    except IndexError:
-        raise IndexError("No Rigid Bodies found in Optitrack tracker.")
-    except KeyError:
-        raise KeyError("Rigid Body '{}' not found in list of Optitrack Rigid Bodies.".format(arena_name))
-
-    print('Arena Name: {}. N Markers: {}'.format(arena_name, len(rigid_bodies[arena_name].markers)))
-    assert len(rigid_bodies[arena_name].markers) > 5, "At least 6 markers in the arena's rigid body is required"
-
-    # TODO: Fix bug that requires scanning be done in original orientation (doesn't affect later recreation, luckily.)
-    for attempt in range(3):  # Sometimes it doesn't work on the first try, for some reason.
-        rigid_bodies[arena_name].reset_orientation()
-        motive.update()
-        if sum(np.abs(rigid_bodies[arena_name].rotation)) < 1.:
-            break
-    else:
-        raise ValueError("Rigid Body Orientation not Resetting to 0,0,0 after 3 attempts.  This happens sometimes (bug), please just run the script again.")
-
-    # Scan points
-    points = scan()
-    assert(len(points) > 100), "Only {} points detected.  Tracker is not detecting enough points to model.  Is the projector turned on?".format(len(points))
-
-    # Rotate all points to be mean-centered and aligned to Optitrack Markers direction or largest variance.
-    markers = np.array(rigid_bodies[arena_name].point_cloud_markers)
-    points = points - np.mean(markers, axis=0) if args.mean_center else points
-    points = np.dot(points,  rotation_matrix(np.radians(orienting.rotate_to_var(markers)), [0, 1, 0])[:3, :3]) if args.pca_rotate else points # TODO: RE-ADD PCA Rotation!
-
-    # Plot preview of data collected
-    from matplotlib import pyplot as plt
-    plot_3d(points, square_axis=True)
-    plt.show()
-
-
-    # Get vertex positions and normal directions from the collected data.
-    vertices, normals = meshify(points, n_surfaces=args.n_sides)
-    vertices = {wall: fan_triangulate(reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
-
-    # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
-    wave_str = data_to_wavefront(arena_name, vertices, normals)
-
-    # Write to app data directory
-    # with open(path.join(rc.data_dir, 'arena.obj'), 'wb') as wavfile:
-    with open('arena.obj', 'wb') as wavfile:
-        wavfile.write(wave_str)
-    # If specified, optionally also save .obj file to another directory.
-    if args.save_filename:
-        with open(args.save_filename, 'wb') as wavfile:
-            wavfile.write(wave_str)
-
-    # Show resulting plot with points and model in same place.
-    ax = plot_3d(points[::12, :], square_axis=True)
-    for idx, verts in vertices.items():
-        show = True if idx == len(vertices)-1 else False  # Only make the plot appear after the last face is drawn.
-        ax = plot_3d(np.vstack((verts, verts[0, :])), ax=ax, title='Triangulated Model', line=True, show=show)
+    run()
