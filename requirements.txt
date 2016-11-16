@@ -1,0 +1,6 @@
+numpy
+matplotlib
+click
+pyglet
+ratcave
+# motivepy

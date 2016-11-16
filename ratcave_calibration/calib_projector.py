@@ -6,16 +6,14 @@ import click
 import cv2
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import motive
 import numpy as np
 import pyglet
+import motive
 import ratcave as rc
 
 from ratcave_calibration.utils import hardware
 
 np.set_printoptions(precision=3, suppress=True)
-
-
 
 
 class PointScanWindow(pyglet.window.Window):
@@ -75,40 +73,6 @@ class PointScanWindow(pyglet.window.Window):
 
 
 
-
-
-@click.command()
-@click.argument('motive_filename', type=click.Path(exists=True))
-@click.option('--debug', default=False, help='Display window only (no logging)')
-@click.option('--points', default=100, help="Number of data points to collect before estimating position")
-@click.option('--fps', default=15, help="Frame rate to update window at.")
-def run(motive_filename, debug, points, fps):
-
-
-    motive_filename = motive_filename.encode()
-
-    motive.load_project(motive_filename)
-    hardware.motive_camera_vislight_configure()
-
-    display = pyglet.window.get_platform().get_default_display()
-    screen = display.get_screens()[1]
-
-
-    pyglet.clock.set_fps_limit(fps)
-    window = PointScanWindow(screen=screen, fullscreen=True, max_points=points)
-
-
-    pyglet.app.run()
-    pos, rotmat = calibrate(window.screen_pos, window.marker_pos)
-    click.echo(pos)
-    click.echo(rotmat)
-    plot2d(window.screen_pos, window.marker_pos)
-
-    plot_estimate(obj_points=window.marker_pos, position=pos, rotation_matrix=rotmat)
-
-
-
-
 def calibrate(img_points, obj_points):
     """
     Returns position and rotation arrays by using OpenCV's camera calibration function on image calibration data.
@@ -144,8 +108,10 @@ def calibrate(img_points, obj_points):
 
 
 def plot_estimate(obj_points, position, rotation_matrix):
-    """Make a 3D plot of the data and the projector position and direction estimate, just to verify that the estimate
-    makes sense."""
+    """
+    Make a 3D plot of the data and the projector position and direction estimate, just to verify that the estimate
+    makes sense.
+    """
 
     obj_points = np.array(obj_points)
     assert obj_points.ndim == 2
@@ -183,6 +149,35 @@ def plot2d(img_points, obj_points):
 
     plt.show()
 
+
+@click.command()
+@click.argument('motive_filename', type=click.Path(exists=True))
+@click.option('--debug', default=False, help='Display window only (no logging)')
+@click.option('--points', default=100, help="Number of data points to collect before estimating position")
+@click.option('--fps', default=15, help="Frame rate to update window at.")
+def run(motive_filename, debug, points, fps):
+
+
+    motive_filename = motive_filename.encode()
+
+    motive.load_project(motive_filename)
+    hardware.motive_camera_vislight_configure()
+
+    display = pyglet.window.get_platform().get_default_display()
+    screen = display.get_screens()[1]
+
+
+    pyglet.clock.set_fps_limit(fps)
+    window = PointScanWindow(screen=screen, fullscreen=True, max_points=points)
+
+
+    pyglet.app.run()
+    pos, rotmat = calibrate(window.screen_pos, window.marker_pos)
+    click.echo(pos)
+    click.echo(rotmat)
+    plot2d(window.screen_pos, window.marker_pos)
+
+    plot_estimate(obj_points=window.marker_pos, position=pos, rotation_matrix=rotmat)
 
 
 if __name__ == '__main__':
