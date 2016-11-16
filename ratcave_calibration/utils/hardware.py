@@ -1,6 +1,7 @@
+import motive
 
 def motive_camera_vislight_configure():
-    import motive
+
     for cam in motive.get_cams():
 
         # All cameras should have frame rate changed.
