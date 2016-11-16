@@ -125,7 +125,7 @@ def fan_triangulate(vertices):
     return np.array([el for (ii, jj) in zip(vertices[1:-1], vertices[2:]) for el in [vertices[0], ii, jj]])
 
 
-def data_to_wavefront(mesh_name, vert_dict, normal_dict):
+def to_wavefront(mesh_name, vert_dict, normal_dict):
     """Returns a wavefront .obj string using pre-triangulated vertex dict and normal dict as reference."""
 
     # Put header in string
