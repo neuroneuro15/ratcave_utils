@@ -1,6 +1,8 @@
 __author__ = 'nickdg'
 
 import random
+import pickle
+from os import path
 
 import click
 import cv2
@@ -8,6 +10,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import pyglet
+
+
 import motive
 import ratcave as rc
 
@@ -116,24 +120,15 @@ def plot_estimate(obj_points, position, rotation_matrix):
     obj_points = np.array(obj_points)
     assert obj_points.ndim == 2
 
+    cam_dir = np.dot([0, 0, -1], rotation_matrix) # Rotate from -Z vector (default OpenGL camera direction)
+    rot_vec = np.vstack((position, position+cam_dir))
+
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-
     ax.scatter(*obj_points.T)
-
+    ax.plot(*rot_vec.T)
     plt.show()
 
-    # # Plot and Check that vector position and direction is generally correct, and give tips if not.
-    # cam_dir = np.dot([0, 0, -1], rotation_matrix) # Rotate from -Z vector (default OpenGL camera direction)
-    # rot_vec = np.vstack((position, position+cam_dir))
-    #
-    #
-    #
-    #
-    # ax.scatter(obj)
-    # ax = plot_3d(pointPos, square_axis=True)
-    # plot_3d(rot_vec, ax=ax, color='r', line=True)
-    # plot_3d(np.array([position]), ax=ax, color='g', show=True)
 
 
 def plot2d(img_points, obj_points):
@@ -152,33 +147,39 @@ def plot2d(img_points, obj_points):
 
 @click.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
-@click.option('--debug', default=False, help='Display window only (no logging)')
+@click.argument('projector_filename', type=click.Path())
 @click.option('--points', default=100, help="Number of data points to collect before estimating position")
 @click.option('--fps', default=15, help="Frame rate to update window at.")
-def run(motive_filename, debug, points, fps):
+def run(motive_filename, projector_filename, points, fps):
 
+    # Verify inputs
+    projector_filename = projector_filename.encode()
+    if not path.splitext(projector_filename)[1]:
+        projector_filename += '.pickle'
 
     motive_filename = motive_filename.encode()
 
+    # Collect Data
     motive.load_project(motive_filename)
     hardware.motive_camera_vislight_configure()
 
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[1]
-
-
     pyglet.clock.set_fps_limit(fps)
     window = PointScanWindow(screen=screen, fullscreen=True, max_points=points)
-
-
     pyglet.app.run()
+
+    # Run Calibration Algorithm
     pos, rotmat = calibrate(window.screen_pos, window.marker_pos)
+
+    # Plot and Save Results
     click.echo(pos)
     click.echo(rotmat)
     plot2d(window.screen_pos, window.marker_pos)
-
     plot_estimate(obj_points=window.marker_pos, position=pos, rotation_matrix=rotmat)
 
+    with open(projector_filename, 'wb') as f:
+        pickle.dump({'position': pos, 'rotmat': rotmat}, f)
 
 if __name__ == '__main__':
     run()
