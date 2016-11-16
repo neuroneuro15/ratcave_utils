@@ -11,7 +11,7 @@ import numpy as np
 import pyglet
 import ratcave as rc
 
-import hardware
+from ratcave_calibration.utils import hardware
 
 np.set_printoptions(precision=3, suppress=True)
 
