@@ -1,4 +1,4 @@
-# sirota_vr_scripts
+# ratcave_utils
 Command-line utility programs for scanning, calibrating, and debugging the ratCAVE Virtual Reality system.
 
 Once installed, all programs can be run from the command line (see examples below).
@@ -10,7 +10,7 @@ Help text for each program is available throught the "--help" option.
 Download the source from github and install from the setup.py file:
 
 ```bash
-cd ratcave_calibration
+cd ratcave_utils
 python setup.py install
 ```
 
