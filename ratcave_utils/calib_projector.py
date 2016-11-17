@@ -182,4 +182,4 @@ def calib_projector(motive_filename, projector_filename, points, fps):
         pickle.dump({'position': pos, 'rotmat': rotmat}, f)
 
 if __name__ == '__main__':
-    run()
+    calib_projector()

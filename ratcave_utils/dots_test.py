@@ -38,4 +38,4 @@ def show_dots():
 
 
 if __name__ == '__main__':
-    run()
+    show_dots()
