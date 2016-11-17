@@ -14,7 +14,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from . import cli
 
 from _transformations import rotation_matrix
-from ratcave_calibration.utils import orienting, hardware, pointcloud
+from ratcave_utils.utils import orienting, hardware, pointcloud
 
 np.set_printoptions(precision=3, suppress=True)
 

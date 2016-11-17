@@ -15,7 +15,7 @@ import motive
 import ratcave as rc
 
 from . import cli
-from ratcave_calibration.utils import hardware
+from ratcave_utils.utils import hardware
 
 np.set_printoptions(precision=3, suppress=True)
 
