@@ -11,10 +11,10 @@ from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import pyglet
 
-
 import motive
 import ratcave as rc
 
+from . import cli
 from ratcave_calibration.utils import hardware
 
 np.set_printoptions(precision=3, suppress=True)
@@ -145,12 +145,12 @@ def plot2d(img_points, obj_points):
     plt.show()
 
 
-@click.command()
+@cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
 @click.argument('projector_filename', type=click.Path())
 @click.option('--points', default=100, help="Number of data points to collect before estimating position")
 @click.option('--fps', default=15, help="Frame rate to update window at.")
-def run(motive_filename, projector_filename, points, fps):
+def calib_projector(motive_filename, projector_filename, points, fps):
 
     # Verify inputs
     projector_filename = projector_filename.encode()

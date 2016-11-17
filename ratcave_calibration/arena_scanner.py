@@ -11,6 +11,8 @@ from os import path
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+from . import cli
+
 from _transformations import rotation_matrix
 from ratcave_calibration.utils import orienting, hardware, pointcloud
 
@@ -67,14 +69,14 @@ class GridScanWindow(pyglet.window.Window):
         self.marker_pos.extend(markers)
 
 
-@click.command()
+@cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
 @click.argument('output_filename', type=click.Path())
 @click.option('--body', help='Name of arena rigidbody to track', default='arena')
 @click.option('--nomeancenter', help='Flag: Skips mean-centering of arena.', type=bool, default=False)
 @click.option('--nopca', help='Flag: skips PCA-based arena marker rotation (used for aligning IR markers to image points)', type=bool, default=False)
 @click.option('--nsides', help='Number of Arena Sides.  If not given, will be estimated from data.', type=int, default=0)
-def run(motive_filename, output_filename, body, nomeancenter, nopca, nsides):
+def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsides):
     """Runs Arena Scanning algorithm."""
 
     output_filename = output_filename + '.obj' if not path.splitext(output_filename)[1] else output_filename
@@ -144,4 +146,4 @@ def run(motive_filename, output_filename, body, nomeancenter, nopca, nsides):
 
 
 if __name__ == '__main__':
-    run()
+    scan_arena()

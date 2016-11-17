@@ -3,6 +3,7 @@ import pyglet
 import ratcave as rc
 import numpy as np
 from itertools import product
+from . import cli
 
 display = pyglet.window.get_platform().get_default_display()
 screen = display.get_screens()[1]
@@ -30,8 +31,8 @@ def update(dt):
     pass
 pyglet.clock.schedule(update)
 
-@click.command()
-def run():
+@cli.command()
+def show_dots():
     """Displays dot pattern on second screen.  Useful for checking that Motive is detecting the dots."""
     pyglet.app.run()
 

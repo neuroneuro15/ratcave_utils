@@ -14,6 +14,22 @@ cd ratcave_calibration
 python setup.py install
 ```
 
+After installing, To see what commands are available, simply type the following to get a list of available commands:
+
+```bash
+ratcave_utils
+```
+
+Help text is available for every subcommand as well:
+
+```bash
+ratcave_utils scan_arena --help
+```
+
+```bash
+scan_arena --help
+```
+
 ## Examples
 
 ### Debugging: Get Rigid Body Live Tracking Info

@@ -1,7 +1,9 @@
 import motive
 import click
+from . import cli
 
-@click.command()
+
+@cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
 @click.option('--body', help='Name of rigidBody to track')
 def trackbody(motive_filename, body):
