@@ -40,7 +40,7 @@ def trackbody(motive_filename, body):
         motive.update()
         fmt_str = "loc: {:.1f}, {:.1f}, {:.1f}\t rot: {:.1f}, {:.1f}, {:.1f}"
         window.label.text = fmt_str.format(*(body.location + body.rotation))
-        window.mesh.rotation = body.rotation
+        window.mesh.rotation = body.rotation_global
 
     pyglet.clock.schedule(update_body, window, body)
 
