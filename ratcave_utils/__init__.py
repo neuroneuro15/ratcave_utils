@@ -14,3 +14,4 @@ from . import arena_scanner
 from . import calib_projector
 from . import track_rigidbody
 from . import dots_test
+from . import utils
