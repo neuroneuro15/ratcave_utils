@@ -4,7 +4,7 @@ setup(
     name='ratcave_utils',
     version='0.1',
     packages=find_packages(),
-    install_requires=['Click', 'numpy', 'pyglet'],  # TODO: Find out how to list OpenCV-2 (cv2 didn't work)
+    install_requires=['click', 'numpy', 'pyglet'],  # TODO: Find out how to list OpenCV-2 (cv2 didn't work)
     entry_points={
         'console_scripts': [
             'ratcave_utils = ratcave_utils:cli',
