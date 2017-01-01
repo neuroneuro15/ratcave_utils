@@ -9,7 +9,7 @@ setup(
         'console_scripts': [
             'ratcave_utils = ratcave_utils:cli',
             'calib_projector = ratcave_utils.calib_projector:calib_projector',
-            'track_rigidbody = ratcave_utils.track_rigidbody:trackbody',
+            'trackrotation = ratcave_utils.track_rigidbody:trackrotation',
             'scan_arena = ratcave_utils.arena_scanner:scan_arena',
             'dots_test = ratcave_utils.dots_test:show_dots',
         ],
