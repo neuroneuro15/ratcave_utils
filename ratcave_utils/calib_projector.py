@@ -17,6 +17,7 @@ import ratcave as rc
 from . import cli
 from ratcave_utils.utils import hardware
 
+
 np.set_printoptions(precision=3, suppress=True)
 
 
@@ -160,11 +161,14 @@ def calib_projector(motive_filename, projector_filename, points, fps):
     motive_filename = motive_filename.encode()
 
     # Collect Data
+    motive.initialize()
     motive.load_project(motive_filename)
+
+
     hardware.motive_camera_vislight_configure()
 
     display = pyglet.window.get_platform().get_default_display()
-    screen = display.get_screens()[1]
+    screen = display.get_screens()[0]
     pyglet.clock.set_fps_limit(fps)
     window = PointScanWindow(screen=screen, fullscreen=True, max_points=points)
     pyglet.app.run()
@@ -178,8 +182,12 @@ def calib_projector(motive_filename, projector_filename, points, fps):
     plot2d(window.screen_pos, window.marker_pos)
     plot_estimate(obj_points=window.marker_pos, position=pos, rotation_matrix=rotmat)
 
+    # Create RatCAVE Camera for use in the project.
+    camera = rc.Camera(position=pos)
+    camera.rotation = camera.rotation.from_matrix(rotmat)
+
     with open(projector_filename, 'wb') as f:
-        pickle.dump({'position': pos, 'rotmat': rotmat}, f)
+        pickle.dump(camera, f)
 
 if __name__ == '__main__':
     calib_projector()
