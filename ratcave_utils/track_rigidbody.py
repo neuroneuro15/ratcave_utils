@@ -5,6 +5,7 @@ import click
 import ratcave as rc
 from . import cli
 import numpy as np
+import pickle
 
 class RotationWindow(pyglet.window.Window):
 
@@ -21,7 +22,8 @@ class RotationWindow(pyglet.window.Window):
         self.label = pyglet.text.Label()
 
     def on_draw(self):
-        self.scene.draw()
+        with rc.resources.genShader:
+            self.scene.draw()
         self.label.draw()
 
 
@@ -44,6 +46,41 @@ def trackrotation(motive_filename, body):
     def update_body(dt, window, body):
         motive.update()
         window.mesh.rotation.xyzw = body.rotation_quats
+
+        fmt_str = "loc: {:.1f}, {:.1f}, {:.1f}\t rot: {:.2f}, {:.2f}, {:.2f}, {:.2f}"
+        window.label.text = fmt_str.format(*(body.location + body.rotation_quats))
+
+    pyglet.clock.schedule(update_body, window, body)
+
+    pyglet.app.run()
+
+
+@cli.command()
+@click.argument('motive_filename', type=click.Path(exists=True))
+@click.argument('projector_filename', type=click.Path(exists=True))
+@click.option('--body', help='Name of rigidBody to track')
+def trackposition(motive_filename, projector_filename, body):
+
+    motive.initialize()
+    motive_filename = motive_filename.encode()
+    motive.load_project(motive_filename)
+
+    body = motive.get_rigid_bodies()[body]
+    for el in range(3):
+        body.reset_orientation()
+        motive.update()
+
+    window = RotationWindow()
+
+    # Load projector's Camera object, created from the calib_projector ratcave_utils CLI tool.
+    with open(projector_filename.encode()) as f:
+        camera = pickle.load(f)
+    window.scene.camera = camera
+
+    def update_body(dt, window, body):
+        motive.update()
+        window.mesh.rotation.xyzw = body.rotation_quats
+        window.mesh.position.xyz = body.location
 
         fmt_str = "loc: {:.1f}, {:.1f}, {:.1f}\t rot: {:.2f}, {:.2f}, {:.2f}, {:.2f}"
         window.label.text = fmt_str.format(*(body.location + body.rotation_quats))
