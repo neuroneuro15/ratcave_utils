@@ -7,7 +7,15 @@ import warnings
 
 class Logger(rc.utils.Observer):
 
-    columns=('MotiveTime', 'Time', 'Name', 'Visible', 'x', 'y', 'z', 'rot_x', 'rot_y', 'rot_z', 'quat_w', 'quat_x', 'quat_y', 'quat_z', 'glob_x', 'glob_y', 'glob_z')
+    columns=('MotiveTime', 'Time',
+             'Class', 'Name', 'Visible',
+             'x', 'y', 'z',
+             'rot_x', 'rot_y', 'rot_z',
+             'quat_w', 'quat_x', 'quat_y', 'quat_z',
+             'glob_x', 'glob_y', 'glob_z',
+             'ori_x', 'ori_y', 'ori_z',
+             'glob_ori_x', 'glob_ori_y', 'glob_ori_z',
+             )
 
     def __init__(self, fname, overwrite=False, **kwargs):
         """Creates a CSV Logging object that writes whenever registered ratcave Observable objects change."""
@@ -47,6 +55,7 @@ class Logger(rc.utils.Observer):
                 line['MotiveTime'] = motive_tt
                 line['Time'] = tt
                 line['Name'] = obs.name
+                line['Class'] = obs.__class__.__name__
                 line['Visible'] = obs.visible
                 line['x'], line['y'], line['z'] = obs.position.xyz
                 rot_euler = obs.rotation.to_euler(units='rad')
@@ -54,6 +63,8 @@ class Logger(rc.utils.Observer):
                 rot_quat = obs.rotation.to_quaternion()
                 line['quat_w'], line['quat_x'], line['quat_y'], line['quat_z'] = rot_quat.wxyz
                 line['glob_x'], line['glob_y'], line['glob_z'] = obs.position_global
+                line['ori_x'], line['ori_y'], line['ori_z'] = obs.orientation
+                line['glob_ori_x'], line['glob_ori_y'], line['glob_ori_z'] = obs.orientation_global
                 self.writer.writerow(line)
 
 
