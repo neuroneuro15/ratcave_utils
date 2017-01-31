@@ -2,15 +2,21 @@ import csv
 import ratcave as rc
 import motive
 import time
-
+from os import path
+import warnings
 
 class Logger(rc.utils.Observer):
 
     columns=('MotiveTime', 'Time', 'Name', 'Visible', 'x', 'y', 'z', 'rot_x', 'rot_y', 'rot_z', 'quat_w', 'quat_x', 'quat_y', 'quat_z', 'glob_x', 'glob_y', 'glob_z')
 
-    def __init__(self, fname, **kwargs):
+    def __init__(self, fname, overwrite=False, **kwargs):
         """Creates a CSV Logging object that writes whenever registered ratcave Observable objects change."""
         super(Logger, self).__init__(**kwargs)
+        if path.exists(fname):
+            if overwrite:
+                warnings.warn('Overwriting existing logfile {}'.format(fname))
+            else:
+                raise IOError("LogFile {} already exists.".format(fname))
         self.fname = fname
         self.writer = None
         self.f = None
@@ -49,3 +55,9 @@ class Logger(rc.utils.Observer):
                 line['quat_w'], line['quat_x'], line['quat_y'], line['quat_z'] = rot_quat.wxyz
                 line['glob_x'], line['glob_y'], line['glob_z'] = obs.position_global
                 self.writer.writerow(line)
+
+
+    def add_observables(self, *observables):
+        """Convenience function for logging, which simply calls the register_observer(log) method on each observable."""
+        for observable in observables:
+            observable.register_observer(self)
