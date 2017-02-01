@@ -16,7 +16,7 @@ import ratcave as rc
 
 from . import cli
 from ratcave_utils.utils import hardware
-
+import _transformations as trans
 
 np.set_printoptions(precision=3, suppress=True)
 
@@ -34,12 +34,12 @@ class PointScanWindow(pyglet.window.Window):
         super(PointScanWindow, self).__init__(*args, **kwargs)
 
         wavefront_reader = rc.WavefrontReader(rc.resources.obj_primitives)
-        self.mesh = wavefront_reader.get_mesh('Sphere', position=[0., 0., -1.], scale=.01)
+        self.mesh = wavefront_reader.get_mesh('Sphere', position=[0., 0., -1.], scale=.005)
         self.mesh.uniforms['diffuse'] = [1., 1., 1.]  # Make white
         self.mesh.uniforms['flat_shading'] = True
 
-        self.scene = rc.Scene([self.mesh], bgColor=(0, 0, 0))
-        self.scene.camera.ortho_mode = True
+        self.scene = rc.Scene(meshes=[self.mesh], bgColor=(0, 0, 0))
+        self.scene.camera.projection = rc.OrthoProjection(origin='center', coords='relative')
 
         self.max_points = max_points
         self.screen_pos = []
@@ -51,17 +51,18 @@ class PointScanWindow(pyglet.window.Window):
         if len(self.screen_pos) >= self.max_points:
             self.close()
 
-    def randomly_move_point(self, xlim=(-.9, .9), ylim=(-.5, .5)):
+    def randomly_move_point(self, xlim=(-.5, .5), ylim=(-.4, .4)):
         """Randomly moves the mesh center to somewhere between xlim and ylim"""
         for attr, lims in zip('xy', (xlim, ylim)):
             limrange = max(lims) - min(lims)
             newpos = limrange * random.random() - (limrange / 2)
-            setattr(self.mesh, attr, newpos)
+            setattr(self.mesh.position, attr, newpos)
 
     def on_draw(self):
         """Move the mesh, then draw it!"""
         self.randomly_move_point()
-        self.scene.draw()
+        with rc.resources.genShader:
+            self.scene.draw()
 
     def detect_projection_point(self, dt):
         """Use Motive to detect the projected mesh in 3D space"""
@@ -73,7 +74,7 @@ class PointScanWindow(pyglet.window.Window):
         markers = [marker for marker in markers if marker[1] < 0.50 and marker[1] > 0.08]
         if len(markers) == 1:
             click.echo(markers)
-            self.screen_pos.append([self.mesh.x, self.mesh.y])
+            self.screen_pos.append([self.mesh.position.x, self.mesh.position.y])
             self.marker_pos.append(markers[0])
 
 
@@ -97,19 +98,24 @@ def calibrate(img_points, obj_points):
     assert obj_points.ndim == 2
     img_points *= -1
 
-    _, cam_mat, _, rotVec, posVec = cv2.calibrateCamera([obj_points], [img_points], (1,1),  # Currently a false window size. # TODO: Get cv2.calibrateCamera to return correct intrinsic parameters.
-                                        flags=cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_PRINCIPAL_POINT | cv2.CALIB_FIX_ASPECT_RATIO | # Assumes equal height/width aspect ratio
+    _, cam_mat, _, rotVec, posVec = cv2.calibrateCamera([obj_points], [img_points], (1, 1),#,  # Currently a false window size. # TODO: Get cv2.calibrateCamera to return correct intrinsic parameters.
+                                        flags=cv2.CALIB_USE_INTRINSIC_GUESS | cv2.CALIB_FIX_PRINCIPAL_POINT | # cv2.CALIB_FIX_ASPECT_RATIO | # Assumes equal height/width aspect ratio
                                               cv2.CALIB_ZERO_TANGENT_DIST |  cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3 |
-                                              cv2.CALIB_FIX_K4 | cv2.CALIB_FIX_K5 | cv2.CALIB_FIX_K6)
-
+                                              cv2.CALIB_FIX_K4 | cv2.CALIB_FIX_K5 | cv2.CALIB_FIX_K6
+                                                        )
     # Change order of coordinates from cv2's camera-centered coordinates to Optitrack y-up coords.
     pV, rV = posVec[0], rotVec[0]
 
     # Return the position array and rotation matrix for the camera.
-    position = -np.dot(pV.T, cv2.Rodrigues(rV)[0]).flatten()  # Invert the position by the rotation to be back in world coordinates
-    rotation_matrix = cv2.Rodrigues(rV)[0]
+    position = np.dot(pV.T, cv2.Rodrigues(rV)[0]).flatten()  # Invert the position by the rotation to be back in world coordinates
+    camera_matrix = cv2.Rodrigues(rV)[0]
 
-    return position, rotation_matrix
+    # Build Model Matrix from openCV output: convert to view matrix, then invert to get model matrix.
+    model_matrix = np.identity(4)
+    model_matrix[:3, -1] = -position
+    model_matrix[:3, :3] = np.linalg.inv(camera_matrix)
+
+    return model_matrix
 
 
 def plot_estimate(obj_points, position, rotation_matrix):
@@ -151,7 +157,8 @@ def plot2d(img_points, obj_points):
 @click.argument('projector_filename', type=click.Path())
 @click.option('--points', default=100, help="Number of data points to collect before estimating position")
 @click.option('--fps', default=15, help="Frame rate to update window at.")
-def calib_projector(motive_filename, projector_filename, points, fps):
+@click.option('--screen', default=1, help='Screen number to display on.')
+def calib_projector(motive_filename, projector_filename, points, fps, screen):
 
     # Verify inputs
     projector_filename = projector_filename.encode()
@@ -168,23 +175,23 @@ def calib_projector(motive_filename, projector_filename, points, fps):
     hardware.motive_camera_vislight_configure()
 
     display = pyglet.window.get_platform().get_default_display()
-    screen = display.get_screens()[0]
+    screen = display.get_screens()[screen]
     pyglet.clock.set_fps_limit(fps)
     window = PointScanWindow(screen=screen, fullscreen=True, max_points=points)
     pyglet.app.run()
 
-    # Run Calibration Algorithm
-    pos, rotmat = calibrate(window.screen_pos, window.marker_pos)
-
-    # Plot and Save Results
-    click.echo(pos)
-    click.echo(rotmat)
+    # Run Calibration Algorithm and Plot results
+    model_matrix = calibrate(window.screen_pos, window.marker_pos)
+    click.echo(model_matrix)
     plot2d(window.screen_pos, window.marker_pos)
-    plot_estimate(obj_points=window.marker_pos, position=pos, rotation_matrix=rotmat)
+    plot_estimate(obj_points=window.marker_pos, position=model_matrix[:3, -1], rotation_matrix=np.linalg.inv(model_matrix[:3, :3]))
 
-    # Create RatCAVE Camera for use in the project.
-    camera = rc.Camera(position=pos)
-    camera.rotation = camera.rotation.from_matrix(rotmat)
+    # Create RatCAVE Camera for use in the project and save it in a pickle file.
+    camera = rc.Camera()
+    camera.position.xyz = model_matrix[:3, -1]
+    camera.rotation = camera.rotation.from_matrix(model_matrix)
+    click.echo(camera.position)
+    click.echo(camera.rotation)
 
     with open(projector_filename, 'wb') as f:
         pickle.dump(camera, f)
