@@ -6,6 +6,7 @@ import click
 import motive
 import numpy as np
 import pyglet
+import pyglet.gl as gl
 import ratcave as rc
 from os import path
 from matplotlib import pyplot as plt
@@ -29,7 +30,9 @@ class GridScanWindow(pyglet.window.Window):
         super(GridScanWindow, self).__init__(*args, **kwargs)
 
         wavefront_reader = rc.WavefrontReader(rc.resources.obj_primitives)
-        self.mesh = wavefront_reader.get_mesh('Grid', position=[0., 0., -1.], scale=1.5, point_size=12, drawstyle='point')
+        self.mesh = wavefront_reader.get_mesh('Grid', position=[0., 0., -1.], scale=1.5)
+        self.mesh.drawmode = rc.POINTS
+        self.mesh.gl_states = (gl.GL_POINT_SMOOTH,)
         self.mesh.uniforms['diffuse'] = [1., 1., 1.]  # Make white
         self.mesh.uniforms['flat_shading'] = True
 
@@ -37,7 +40,7 @@ class GridScanWindow(pyglet.window.Window):
         self.scene.camera.ortho_mode = True
 
         dist = .06
-        self.cam_positions = ((dist * np.sin(ang), dist * np.cos(ang), -1) for ang in np.linspace(0, 2*np.pi, 40)[:-1])
+        self.cam_positions = ((dist * np.sin(ang), dist * np.cos(ang), 0) for ang in np.linspace(0, 2*np.pi, 40)[:-1])
 
         self.marker_pos = []
         pyglet.clock.schedule(self.detect_projection_point)
@@ -46,7 +49,7 @@ class GridScanWindow(pyglet.window.Window):
     def move_camera(self, dt):
         """Randomly moves the mesh center to somewhere between xlim and ylim"""
         try:
-            self.scene.camera.position = next(self.cam_positions)
+            self.scene.camera.position.xyz = next(self.cam_positions)
         except StopIteration:
             print("End of Camera Position list reached. Closing window...")
             pyglet.clock.unschedule(self.detect_projection_point)
@@ -54,7 +57,9 @@ class GridScanWindow(pyglet.window.Window):
 
     def on_draw(self):
         """Render the scene!"""
-        self.scene.draw()
+        with rc.resources.genShader:
+            gl.glPointSize(12.)
+            self.scene.draw()
 
     def detect_projection_point(self, dt):
         """Use Motive to detect the projected mesh in 3D space"""
@@ -84,6 +89,7 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
 
     # Load Motive Project File
     motive_filename = motive_filename.encode()
+    motive.initialize()
     motive.load_project(motive_filename)
     hardware.motive_camera_vislight_configure()
     motive.update()
