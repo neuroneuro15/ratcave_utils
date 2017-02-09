@@ -73,24 +73,21 @@ def trackposition(motive_filename, projector_filename, body, screen):
         body.reset_orientation()
         motive.update()
 
+
+    # Load projector's Camera object, created from the calib_projector ratcave_utils CLI tool.
+
+
+
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[screen]
     window = RotationWindow(fullscreen=True, screen=screen)
+
     keys = key.KeyStateHandler()
     window.push_handlers(keys)
 
-    # Load projector's Camera object, created from the calib_projector ratcave_utils CLI tool.
-    with open(projector_filename.encode()) as f:
-        camera = pickle.load(f)
-    # camera.projection = rc.PerspectiveProjection()
+    camera = rc.Camera.from_pickle(projector_filename.encode())
     window.scene.camera = camera
-    # window.scene.camera.projection.update()
 
-    @window.event
-    def on_resize(width, height):
-        cam = window.scene.camera
-        cam.projection.aspect = width / float(height)
-        cam.projection.update()
 
     @window.event
     def on_draw():
@@ -105,21 +102,34 @@ def trackposition(motive_filename, projector_filename, body, screen):
         window.mesh.rotation.xyzw = body.rotation_quats
         window.mesh.position.xyz = body.location
         # window.scene.camera.rotation.x += 15 * dt
-        fmt_str = "loc: {:.1f}, {:.1f}, {:.1f}\t rot: {:.2f}, {:.2f}, {:.2f}, {:.2f}\n{fov_y}"
+        fmt_str = "loc: {:.1f}, {:.1f}, {:.1f}\t rot: {:.2f}, {:.2f}, {:.2f}, {:.2f}\n{fov_y:.2f}\t{aspect:.2f}"
         window.label.text = fmt_str.format(*(body.location + body.rotation_quats),
-                                       fov_y=window.scene.camera.projection.fov_y)
+                                       fov_y=window.scene.camera.projection.fov_y,
+                                           aspect=window.scene.camera.projection.aspect)
 
-        print(window.scene.camera.projection.fov_y)
+        # print(window.scene.camera.projection.projection_matrix)
+        print(window.scene.camera.uniforms['projection_matrix'])
 
     def update_fov(dt):
-        cam = window.scene.camera
+
+        camera.projection.aspect = window.width / float(window.height)
+        camera.projection.update()
+
         speed = 10.  # How fast to change values on keyboard hold.
         if keys[key.UP]:
-            cam.projection.fov_y += speed * dt
-            cam.projection.update()
+            camera.projection.fov_y += speed * dt
+            camera.projection.update()
         if keys[key.DOWN]:
-            cam.projection.fov_y -= speed * dt
-            cam.projection.update()
+            camera.projection.fov_y -= speed * dt
+            camera.projection.update()
+        if keys[key.LEFT]:
+            camera.projection.aspect += speed * dt
+            camera.projection.update()
+        if keys[key.RIGHT]:
+            camera.projection.aspect -= speed * dt
+            camera.projection.update()
+
+
     pyglet.clock.schedule(update_fov)
 
 
