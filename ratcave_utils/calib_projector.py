@@ -64,6 +64,11 @@ class PointScanWindow(pyglet.window.Window):
         with rc.resources.genShader:
             self.scene.draw()
 
+    def on_resize(self, width, height):
+        """On resize, save width and height for later use."""
+        self.vpwidth = width
+        self.vpheight = height
+
     def detect_projection_point(self, dt):
         """Use Motive to detect the projected mesh in 3D space"""
         motive.flush_camera_queues()
@@ -190,6 +195,9 @@ def calib_projector(motive_filename, projector_filename, points, fps, screen):
     camera = rc.Camera()
     camera.position.xyz = model_matrix[:3, -1]
     camera.rotation = camera.rotation.from_matrix(model_matrix)
+    camera.update()
+    camera.projection.fov_y = .0338 * window.vpheight + 4.47  # Calculated just for our projector.
+    camera.projection.update()
     click.echo(camera.position)
     click.echo(camera.rotation)
 
