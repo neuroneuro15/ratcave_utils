@@ -58,7 +58,7 @@ class GridScanWindow(pyglet.window.Window):
     def on_draw(self):
         """Render the scene!"""
         with rc.resources.genShader:
-            gl.glPointSize(12.)
+            gl.glPointSize(20.)
             self.scene.draw()
 
     def detect_projection_point(self, dt):
@@ -81,7 +81,8 @@ class GridScanWindow(pyglet.window.Window):
 @click.option('--nomeancenter', help='Flag: Skips mean-centering of arena.', type=bool, default=False)
 @click.option('--nopca', help='Flag: skips PCA-based arena marker rotation (used for aligning IR markers to image points)', type=bool, default=False)
 @click.option('--nsides', help='Number of Arena Sides.  If not given, will be estimated from data.', type=int, default=0)
-def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsides):
+@click.option('--screen', help='Screen number to display on', default=1, type=int)
+def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsides, screen):
     """Runs Arena Scanning algorithm."""
 
     output_filename = output_filename + '.obj' if not path.splitext(output_filename)[1] else output_filename
@@ -111,7 +112,7 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
 
     # Scan points
     display = pyglet.window.get_platform().get_default_display()
-    screen = display.get_screens()[1]
+    screen = display.get_screens()[screen]
     window = GridScanWindow(screen=screen, fullscreen=True)
     pyglet.app.run()
     points = np.array(window.marker_pos)
@@ -133,6 +134,9 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
 
     # Get vertex positions and normal directions from the collected data.
     vertices, normals = pointcloud.meshify(points, n_surfaces=nsides)
+    if np.median([norm[1] for norm in normals.values()]) < 0:
+        for norm in normals.values():
+            norm[1] *= -1
     vertices = {wall: pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
 
     # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
