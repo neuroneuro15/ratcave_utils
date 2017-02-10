@@ -15,11 +15,8 @@ class RotationWindow(pyglet.window.Window):
 
         pyglet.clock.schedule(lambda dt: None)
 
-        # reader = rc.WavefrontReader(rc.resources.obj_primitives)
-        # self.mesh = reader.get_mesh('Monkey', scale=.1, position=(0, 0, 0))
-
-        reader = rc.WavefrontReader('arena.obj')
-        self.mesh = reader.get_mesh('Arena', scale=.1, position=(0, 0, 0))
+        reader = rc.WavefrontReader(rc.resources.obj_primitives)
+        self.mesh = reader.get_mesh('Monkey', scale=.05, position=(0, 0, 0))
         self.mesh.rotation = self.mesh.rotation.to_quaternion()
         self.scene = rc.Scene(meshes=[self.mesh], bgColor=(0., 0., 0.))
 
