@@ -2,7 +2,9 @@ import click
 import pyglet
 import ratcave as rc
 from . import cli
+import numpy as np
 
+np.set_printoptions(precision=2, suppress=True)
 
 @cli.command()
 @click.argument('body')
@@ -14,7 +16,7 @@ def view_mesh(body, obj_filename):
     mesh = reader.get_mesh(body, position=(0, 0, -1))
     print(mesh.vertices.shape)
 
-    mesh.scale.x = .1 / mesh.vertices.mean(axis=0).max()
+    mesh.scale.x = .2 / np.ptp(mesh.vertices, axis=0).max()
     camera = rc.Camera(projection=rc.PerspectiveProjection(fov_y=20))
     light = rc.Light(position=(camera.position.xyz))
 
@@ -32,12 +34,22 @@ def view_mesh(body, obj_filename):
     quad = rc.gen_fullscreen_quad()
     quad.texture = fbo.texture
 
+    label = pyglet.text.Label()
+
     @window.event()
     def on_draw():
         with rc.resources.genShader, fbo:
             scene.draw()
         with rc.resources.deferredShader:
             quad.draw()
+
+        verts_mean = np.ptp(mesh.vertices, axis=0)
+        label.text = 'Name: {}\nRotation: {}\nSize: {} x {} x {}'.format(mesh.name,
+                                                                          mesh.rotation,
+                                                                          verts_mean[0],
+                                                                          verts_mean[1],
+                                                                          verts_mean[2])
+        label.draw()
 
     @window.event()
     def on_resize(width, height):
