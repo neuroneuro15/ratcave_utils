@@ -15,8 +15,11 @@ class RotationWindow(pyglet.window.Window):
 
         pyglet.clock.schedule(lambda dt: None)
 
-        reader = rc.WavefrontReader(rc.resources.obj_primitives)
-        self.mesh = reader.get_mesh('Monkey', scale=.1, position=(0, 0, 0))
+        # reader = rc.WavefrontReader(rc.resources.obj_primitives)
+        # self.mesh = reader.get_mesh('Monkey', scale=.1, position=(0, 0, 0))
+
+        reader = rc.WavefrontReader('arena.obj')
+        self.mesh = reader.get_mesh('Arena', scale=.1, position=(0, 0, 0))
         self.mesh.rotation = self.mesh.rotation.to_quaternion()
         self.scene = rc.Scene(meshes=[self.mesh], bgColor=(0., 0., 0.))
 
@@ -101,7 +104,6 @@ def trackposition(motive_filename, projector_filename, body, screen):
         with rc.resources.genShader:
             window.scene.draw()
         window.label.draw()
-        # print(window.scene.camera.rotation)
 
 
     def update_body(dt, window, body):
@@ -115,8 +117,6 @@ def trackposition(motive_filename, projector_filename, body, screen):
                                            aspect=window.scene.camera.projection.aspect,
                                            fps=1./(dt + .00000001))
 
-        # print(window.scene.camera.projection.projection_matrix)
-        print(window.scene.camera.uniforms['projection_matrix'])
 
     def update_fov(dt):
 
