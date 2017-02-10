@@ -16,15 +16,21 @@ class RotationWindow(pyglet.window.Window):
         pyglet.clock.schedule(lambda dt: None)
 
         reader = rc.WavefrontReader(rc.resources.obj_primitives)
-        self.mesh = reader.get_mesh('Monkey', scale=.03, position=(0, 0, 0))
+        self.mesh = reader.get_mesh('Monkey', scale=.1, position=(0, 0, 0))
         self.mesh.rotation = self.mesh.rotation.to_quaternion()
-        self.scene = rc.Scene(meshes=[self.mesh], bgColor=(1., 0., 0.))
+        self.scene = rc.Scene(meshes=[self.mesh], bgColor=(0., 0., 0.))
+
+        self.fbo = rc.FBO(rc.Texture(width=4096, height=4096))
+        self.quad = rc.gen_fullscreen_quad()
+        self.quad.texture = self.fbo.texture
 
         self.label = pyglet.text.Label()
 
     def on_draw(self):
-        with rc.resources.genShader:
+        with rc.resources.genShader, self.fbo:
             self.scene.draw()
+        with rc.resources.deferredShader:
+            self.quad.draw()
         self.label.draw()
 
 
@@ -87,6 +93,7 @@ def trackposition(motive_filename, projector_filename, body, screen):
 
     camera = rc.Camera.from_pickle(projector_filename.encode())
     window.scene.camera = camera
+    window.scene.light.position.xyz = camera.position.xyz
 
 
     @window.event
@@ -102,10 +109,11 @@ def trackposition(motive_filename, projector_filename, body, screen):
         window.mesh.rotation.xyzw = body.rotation_quats
         window.mesh.position.xyz = body.location
         # window.scene.camera.rotation.x += 15 * dt
-        fmt_str = "loc: {:.1f}, {:.1f}, {:.1f}\t rot: {:.2f}, {:.2f}, {:.2f}, {:.2f}\n{fov_y:.2f}\t{aspect:.2f}"
+        fmt_str = "loc: {:.1f}, {:.1f}, {:.1f}\t rot: {:.2f}, {:.2f}, {:.2f}, {:.2f}\nfov_y: {fov_y:.2f}\taspect: {aspect:.2f}\nfps: {fps:.1f}"
         window.label.text = fmt_str.format(*(body.location + body.rotation_quats),
                                        fov_y=window.scene.camera.projection.fov_y,
-                                           aspect=window.scene.camera.projection.aspect)
+                                           aspect=window.scene.camera.projection.aspect,
+                                           fps=1./(dt + .00000001))
 
         # print(window.scene.camera.projection.projection_matrix)
         print(window.scene.camera.uniforms['projection_matrix'])
