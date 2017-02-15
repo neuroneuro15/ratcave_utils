@@ -1,5 +1,7 @@
 import numpy as np
+from scipy import linalg
 from sklearn.decomposition import PCA
+
 
 def rotate_to_var(markers):
     """Returns degrees to rotate about y axis so greatest marker variance points in +X direction"""
@@ -59,3 +61,44 @@ def update_world_position_natnet(meshes, arena_rb, additional_rot_y_rotation):
         mesh.world.rotation = arena_rb.rotation
         mesh.world.rot_y += additional_rot_y_rotation
     return
+
+
+def find_rotation_matrix(points1, points2):
+    """
+    Returns rotation between two sets of NxM points, which have been rotated from one another.
+
+    Parameters
+    ----------
+    points1: MxN (NPoints x NDimensions) matrix
+    points2: MxN (NPoints x NDimensions) matrix, which is 'points1' rotated by some amount.
+
+    Examples
+    --------
+    >>> find_rotation_matrix([[1., 0.], [0., .5]], [[0., 1.], [-.5, 0.]])
+    array([[ 0., -1.],
+           [ 1.,  0.]])
+
+    >>> find_rotation_matrix([[1.00001, 0.001], [0.0001, .50001]], [[0., 1.], [-.5, 0.]])
+    array([[-0., -1.],
+           [ 1.,  0.]])
+
+    >>> find_rotation_matrix([[1., 0.], [0., .5]], [[-1., 0.], [0., -.5]])
+    array([[-1.,  0.],
+           [ 0., -1.]])
+
+    >>> find_rotation_matrix([[1., 0, 0], [0, .5, 2], [-.3, .4, 0]], [[0.,  0, -1], [2, 0.5, 0],[-0, .4, .3]])
+    array([[-0., -0.,  1.],
+           [ 0.,  1., -0.],
+           [-1.,  0., -0.]])
+    """
+    p1 = np.array(points1)
+    p2 = np.array(points2)
+
+    if p1.shape != p2.shape:
+        raise ValueError("Both Matrices must be the same size (M Points x N Dimensions)")
+    if p1.shape[0] < p1.shape[1] or p2.shape[0] < p1.shape[1]:
+        raise ValueError("Underranked Matrices.  Need at least as many points as spatial dimensions.")
+
+    rotmat = np.dot(linalg.pinv(p2), p1)
+
+    return rotmat
