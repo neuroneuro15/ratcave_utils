@@ -20,7 +20,7 @@ def rotate_to_var(markers):
     var_means = [np.var(markers_reordered[:winlen, 1]), np.var(markers_reordered[-winlen:, 1])] # Compute variance for each half
     coeff_vec = coeff_vec * -1 if np.diff(var_means)[0] < 0 else coeff_vec  # Flip or not depending on which half if bigger.
 
-    # Rotation amount, in radians
+    # Rotation amount, in radianss
     base_vec = np.array([1, 0])  # Vector in +X direction
     msin, mcos = np.cross(coeff_vec, base_vec), np.dot(coeff_vec, base_vec)
     angle = np.degrees(np.arctan2(msin, mcos))
