@@ -26,10 +26,13 @@ class RotationWindow(pyglet.window.Window):
 
         self.label = pyglet.text.Label()
 
+        self.shader3d = rc.Shader.from_file(*rc.resources.genShader)
+        self.shaderAA = rc.Shader.from_file(*rc.resources.deferredShader)
+
     def on_draw(self):
-        with rc.resources.genShader, self.fbo:
+        with self.shader3d, self.fbo:
             self.scene.draw()
-        with rc.resources.deferredShader:
+        with self.shaderAA:
             self.quad.draw()
         self.label.draw()
 
@@ -95,10 +98,12 @@ def trackposition(motive_filename, projector_filename, body, screen):
     window.scene.camera = camera
     window.scene.light.position.xyz = camera.position.xyz
 
+    shader = rc.Shader.from_file(*rc.resources.genShader)
+
 
     @window.event
     def on_draw():
-        with rc.resources.genShader:
+        with shader:
             window.scene.draw()
         window.label.draw()
 
@@ -136,11 +141,6 @@ def trackposition(motive_filename, projector_filename, body, screen):
 
 
     pyglet.clock.schedule(update_fov)
-
-
-
-
-
 
     pyglet.clock.schedule(update_body, window, body)
 
