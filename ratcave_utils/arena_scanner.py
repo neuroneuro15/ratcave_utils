@@ -39,6 +39,8 @@ class GridScanWindow(pyglet.window.Window):
         self.scene = rc.Scene([self.mesh], bgColor=(0, 0, 0))
         self.scene.camera.ortho_mode = True
 
+        self.shader = rc.Shader.from_file(*rc.resources.genShader)
+
         dist = .06
         self.cam_positions = ((dist * np.sin(ang), dist * np.cos(ang), 0) for ang in np.linspace(0, 2*np.pi, 40)[:-1])
 
@@ -57,8 +59,8 @@ class GridScanWindow(pyglet.window.Window):
 
     def on_draw(self):
         """Render the scene!"""
-        with rc.resources.genShader:
-            gl.glPointSize(20.)
+        with self.shader:
+            gl.glPointSize(10.)
             self.scene.draw()
 
     def detect_projection_point(self, dt):
