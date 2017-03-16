@@ -125,38 +125,6 @@ def fan_triangulate(vertices):
     return np.array([el for (ii, jj) in zip(vertices[1:-1], vertices[2:]) for el in [vertices[0], ii, jj]])
 
 
-def to_wavefront(mesh_name, vert_dict, normal_dict):
-    """Returns a wavefront .obj string using pre-triangulated vertex dict and normal dict as reference."""
-
-    # Put header in string
-    wavefront_str = "# Blender v2.69 (sub 5) OBJ File: ''\n" + "# www.blender.org\n" + "o {name}\n".format(name=mesh_name)
-
-    # Write Vertex data from vert_dict
-    for wall in vert_dict:
-        for vert in vert_dict[wall]:
-            wavefront_str += "v {0} {1} {2}\n".format(*vert)
-
-    # Write (false) UV Texture data
-    wavefront_str += "vt 1.0 1.0\n"
-
-    # Write Normal data from normal_dict
-    for wall, norm in normal_dict.items():
-        wavefront_str += "vn {0} {1} {2}\n".format(*norm)
-
-    # Write Face Indices (1-indexed)
-    vert_idx = 0
-    for wall in vert_dict:
-        for _ in range(0, len(vert_dict[wall]), 3):
-            wavefront_str += 'f '
-            for vert in range(3): # 3 vertices in each face
-                vert_idx += 1
-                wavefront_str += "{v}/1/{n} ".format(v=vert_idx, n=wall+1)
-            wavefront_str = wavefront_str[:-1] + '\n'  # Cutoff trailing space and add a newline.
-
-    # Return Wavefront string
-    return wavefront_str
-
-
 def meshify(points, n_surfaces=None):
     """Returns vertex and normal coordinates for a 3D mesh model from an Nx3 array of points after filtering.
 
