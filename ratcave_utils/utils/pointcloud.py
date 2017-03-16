@@ -2,8 +2,6 @@ import numpy as np
 from sklearn import mixture
 from sklearn.decomposition import PCA
 
-from . import filters
-
 
 def normal_nearest_neighbors(data, n_neighbors=40):
     """Find the normal direction of a hopefully-planar cluster of n_neighbors"""
@@ -144,8 +142,8 @@ def meshify(points, n_surfaces=None):
     normals_f, explained_variances = normal_nearest_neighbors(points_f)
 
     # Histogram filter: take the 70% best-planar data to model.
-
-    normfilter = filters.hist_mask(explained_variances[:, 2], threshold=.7, keep='lower')
+    ll = explained_variances[:, 2]
+    normfilter = ll < np.sort(ll)[int(len(ll) * .7)]
     points_ff = points_f[normfilter, :]
     normals_ff = normals_f[normfilter, :]
 
