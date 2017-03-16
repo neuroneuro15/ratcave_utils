@@ -123,7 +123,7 @@ def fan_triangulate(vertices):
     return np.array([el for (ii, jj) in zip(vertices[1:-1], vertices[2:]) for el in [vertices[0], ii, jj]])
 
 
-def meshify(points, n_surfaces=None):
+def meshify_arena(points, n_surfaces=None, ceiling_offset=.05):
     """Returns vertex and normal coordinates for a 3D mesh model from an Nx3 array of points after filtering.
 
     Args:
@@ -147,12 +147,10 @@ def meshify(points, n_surfaces=None):
     points_ff = points_f[normfilter, :]
     normals_ff = normals_f[normfilter, :]
 
-    ceiling_height = points_ff[:, 1].max() + .005
-
     # Fit the filtered normal data using a gaussian classifier.
-    min_clusters = n_surfaces if n_surfaces else 4
-    max_clusters = n_surfaces + 1 if n_surfaces else 15
-    model = cluster_normals(normals_ff, min_clusters=min_clusters, max_clusters=max_clusters)
+    model = cluster_normals(normals_ff,
+                            min_clusters=n_surfaces if n_surfaces else 4,
+                            max_clusters=n_surfaces + 1 if n_surfaces else 15)
 
     # Get normals from model means
     surface_normals = model.means_  # n_components x 3 normals array, giving mean normal for each surface.
@@ -160,13 +158,17 @@ def meshify(points, n_surfaces=None):
     # Calculate mean offset of vertices for each wall
     ids = model.predict(normals_ff)  # index for each point, giving the wall id number (0:n_components)
 
-    surface_offsets = np.zeros_like(surface_normals)
-    for idx in range(len(surface_normals)):
-        surface_offsets[idx, :] = np.mean(points_ff[ids==idx, :], axis=0)
+    #
+    surface_offsets = np.array([np.nanmean(points_ff[ids == idx], axis=0) for idx in range(ids.max() + 1)])
+    # surface_offsets = np.zeros_like(surface_normals)
+    # for idx, _ in enumerate(surface_normals):
+    #
+    #     surface_offsets[idx, :] = np.mean(points_ff[ids==idx, :], axis=0)
+    # assert not np.isnan(surface_offsets.sum()), "Incorrect model: No Points found to assign to at least one wall for intersection calculation."
 
-    assert not np.isnan(surface_offsets.sum()), "Incorrect model: No Points found to assign to at least one wall for intersection calculation."
 
     ## CALCULATE PLANE INTERSECTIONS TO GET VERTICES ##
-    vertices, normals = get_vertices_at_intersections(surface_normals, surface_offsets, ceiling_height)
+    vertices, normals = get_vertices_at_intersections(surface_normals, surface_offsets, points_ff[:, 1].max() + ceiling_offset)
+
     return vertices, normals
 
