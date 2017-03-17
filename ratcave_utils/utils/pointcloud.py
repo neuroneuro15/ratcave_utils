@@ -78,11 +78,15 @@ def get_vertices_at_intersections(normals, offsets, ceiling_height):
                     floor_verts.append(vertex.tolist())
 
     # Convert vertex lists to dict of NumPy arrays
-    vertices = {key: np.array(value) for key, value in vertices.items()}
-    vertices[len(vertices)] = np.array(floor_verts)
+    import ipdb
+    ipdb.set_trace()
+    vertices = np.array([value for value in vertices.items()] + [[floor_verts]])
+    # vertices = {key: np.array(value) for key, value in vertices.items()}
+    # vertices[len(vertices)] = np.array(floor_verts)
 
-    norms = {key: np.array(value) for key, value in enumerate(wall_normals)}
-    norms[len(norms)] = np.array(floor_normal)
+    norms = np.append(wall_normals, floor_normal)
+    # norms = {key: np.array(value) for key, value in enumerate(wall_normals)}
+    # norms[len(norms)] = np.array(floor_normal)
 
     return vertices, norms
 

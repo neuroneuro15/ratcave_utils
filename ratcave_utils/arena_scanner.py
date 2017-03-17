@@ -10,7 +10,7 @@ import ratcave as rc
 from os import path
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import wavefront_reader
+from wavefront_reader import WavefrontWriter
 
 from . import cli
 
@@ -128,10 +128,13 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
 
     # Get vertex positions and normal directions from the collected data.
     vertices, normals = pointcloud.meshify_arena(points, n_surfaces=nsides)
-    vertices = {wall: pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
+
+    # vertices = {wall: pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
+    vertices = np.array([pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for verts in vertices])  # Triangulate
+    vertices = vertices.reshape(-1, 3)
 
     # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
-    writer = wavefront_reader.WavefrontWriter.from_dicts(body, vertices, normals)
+    writer = WavefrontWriter.from_array(body, vertices, normals)
     writer.dump(output_filename)
 
     # Show resulting plot with points and model in same place.
