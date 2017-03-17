@@ -2,9 +2,8 @@ import click
 import pyglet
 import ratcave as rc
 from . import cli
-from pyglet.window import key
+from pyglet.window import key, FPSDisplay
 
-rot_offset = 0.
 
 @cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
@@ -39,9 +38,8 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
     screen = display.get_screens()[screen]
     window = pyglet.window.Window(fullscreen=True, screen=screen)
 
-
-
     label = pyglet.text.Label()
+    fps_display = FPSDisplay(window)
 
     shader = rc.Shader.from_file(*rc.resources.genShader)
 
@@ -49,29 +47,20 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
     def on_draw():
         with shader:
             scene.draw()
-        label.draw()
+        # label.draw()
+        # window.clear()
+        fps_display.draw()
 
     @window.event
     def on_resize(width, height):
         camera.projection.aspect = float(width) / height
 
-
-
     @window.event
     def on_key_release(sym, mod):
-        global rot_offset
-
-        step_size = 1.
-        if sym == key.LEFT:
-            rot_offset -= step_size
-        elif sym == key.RIGHT:
-            rot_offset += step_size
-
         if sym == key.UP:
             scene.camera.projection.fov_y += .5
         elif sym == key.DOWN:
             scene.camera.projection.fov_y -= .5
-
 
 
     import motive
@@ -80,31 +69,17 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
     motive.update()
     rb = motive.get_rigid_bodies()['Arena']
 
-    @window.event
+
     def update_arena_position(dt):
         motive.update()
         arena.position.xyz = rb.location
         arena.rotation.xyzw = rb.rotation_quats
-        rot = arena.rotation.to_euler(units='deg')
-        rot.y += rot_offset
-        arena.rotation = rot.to_quaternion()
         arena.update()
-
 
         sphere.position.xyz = rb.location
-        label.text = "off={}, aspect={}, fov_y={}, ({:2f}, {:2f}, {:2f}), ({:2f}, {:2f}, {:2f})".format(rot_offset,
-                                                                                                        scene.camera.projection.aspect,
-                                                                                                        scene.camera.projection.fov_y,
-                                                                                                        *(arena.position.xyz + rb.location))
+        label.text = "aspect={}, fov_y={}, ({:2f}, {:2f}, {:2f}), ({:2f}, {:2f}, {:2f})".format(scene.camera.projection.aspect,
+                                                                                                scene.camera.projection.fov_y,                                                                                                *(arena.position.xyz + rb.location))
     pyglet.clock.schedule(update_arena_position)
-
-    def spin_arena(dt):
-        # rot = arena.rotation.to_euler()
-        # rot.y += 1 * dt
-        # arena.rotation = rot.to_quaternion()
-        arena.update()
-        # arena.rotation.y += 10 * dt
-    pyglet.clock.schedule(spin_arena)
 
     pyglet.app.run()
 
