@@ -4,7 +4,7 @@ import ratcave as rc
 from . import cli
 from pyglet.window import key
 
-rot_offset = -100.5
+rot_offset = 0.
 
 @cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
@@ -15,7 +15,7 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
     # """Displays mesh in .obj file.  Useful for checking that files are rendering properly."""
 
     reader = rc.WavefrontReader(arena_filename)
-    arena = reader.get_mesh('Arena', mean_center=False)
+    arena = reader.get_mesh('Arena', mean_center=True)
     arena.rotation = arena.rotation.to_quaternion()
     print('Arena Loaded. Position: {}, Rotation: {}'.format(arena.position, arena.rotation))
 
