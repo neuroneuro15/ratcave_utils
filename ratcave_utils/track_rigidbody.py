@@ -95,6 +95,7 @@ def trackposition(motive_filename, projector_filename, body, screen):
     window.push_handlers(keys)
 
     camera = rc.Camera.from_pickle(projector_filename.encode())
+    # camera.projection.fov_y = 38.5
     window.scene.camera = camera
     window.scene.light.position.xyz = camera.position.xyz
 

@@ -14,6 +14,7 @@ setup(
             'scan_arena = ratcave_utils.arena_scanner:scan_arena',
             'dots_test = ratcave_utils.dots_test:show_dots',
             'view_mesh = ratcave_utils.view_mesh:view_mesh',
+            'view_arenafit = ratcave_utils.view_arenafit:view_arenafit',
         ],
     }
 )

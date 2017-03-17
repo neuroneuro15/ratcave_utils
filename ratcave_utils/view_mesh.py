@@ -36,7 +36,7 @@ def view_mesh(body, obj_filename):
 
     label = pyglet.text.Label()
 
-    @window.event()
+    @window.event
     def on_draw():
         with rc.resources.genShader, fbo:
             scene.draw()
@@ -51,11 +51,11 @@ def view_mesh(body, obj_filename):
                                                                           verts_mean[2])
         label.draw()
 
-    @window.event()
+    @window.event
     def on_resize(width, height):
         camera.projection.aspect = float(width) / height
 
-    @window.event()
+    @window.event
     def on_mouse_motion(x, y, dx, dy):
         x, y = x / float(window.width) - .5, y / float(window.height) - .5
         mesh.rotation.x = -360 * y

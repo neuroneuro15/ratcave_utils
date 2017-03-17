@@ -47,6 +47,8 @@ class PointScanWindow(pyglet.window.Window):
         pyglet.clock.schedule(self.detect_projection_point)
         pyglet.clock.schedule(self._close_if_max_points_reached)
 
+        self.shader = rc.Shader.from_file(*rc.resources.genShader)
+
     def _close_if_max_points_reached(self, dt):
         if len(self.screen_pos) >= self.max_points:
             self.close()
@@ -61,7 +63,7 @@ class PointScanWindow(pyglet.window.Window):
     def on_draw(self):
         """Move the mesh, then draw it!"""
         self.randomly_move_point()
-        with rc.resources.genShader:
+        with self.shader:
             self.scene.draw()
 
     def on_resize(self, width, height):

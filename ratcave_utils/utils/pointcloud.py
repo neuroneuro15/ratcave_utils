@@ -157,7 +157,7 @@ def to_wavefront(mesh_name, vert_dict, normal_dict):
     return wavefront_str
 
 
-def meshify(points, n_surfaces=None):
+def meshify(points, n_surfaces=None, mean_center=False):
     """Returns vertex and normal coordinates for a 3D mesh model from an Nx3 array of points after filtering.
 
     Args:

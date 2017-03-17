@@ -121,13 +121,6 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
     assert(len(points) > 100), "Only {} points detected.  Tracker is not detecting enough points to model.  Is the projector turned on?".format(len(points))
     assert points.ndim == 2
 
-    # Rotate all points to be mean-centered and aligned to Optitrack Markers direction or largest variance.
-    markers = np.array(rigid_bodies[body].point_cloud_markers)
-    if not nomeancenter:
-        points -= np.mean(markers, axis=0)
-    if not nopca:
-        points = np.dot(points, rotation_matrix(np.radians(orienting.rotate_to_var(markers)), [0, 1, 0])[:3, :3])
-
     # Plot preview of data collected
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -136,15 +129,36 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
 
     # Get vertex positions and normal directions from the collected data.
     vertices, normals = pointcloud.meshify(points, n_surfaces=nsides)
+
+
+
+    # Rotate all points to be mean-centered and aligned to Optitrack Markers direction or largest variance.
+
+
+    # if not nopca:
+    #     points = np.dot(points, rotation_matrix(np.radians(orienting.rotate_to_var(markers)), [0, 1, 0])[:3, :3])
+
+    # Mean-Center and Rotate Model, in order to generate a more workable .obj file
     if np.median([norm[1] for norm in normals.values()]) < 0:
         for norm in normals.values():
             norm[1] *= -1
-    vertices = {wall: pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
 
-    # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
-    wave_str = pointcloud.to_wavefront(body, vertices, normals)
-    with open(output_filename, 'wb') as wavfile:
-        wavfile.write(wave_str)
+
+
+
+
+
+
+
+
+
+    print('running in develop mode.')
+
+
+
+
+
+
 
     # Show resulting plot with points and model in same place.
     fig = plt.figure()
@@ -154,6 +168,11 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
         ax.plot(*np.vstack((verts, verts[0, :])).T)
     plt.show()
 
+    # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
+    vertices = {wall: pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
+    wave_str = pointcloud.to_wavefront(body, vertices, normals)
+    with open(output_filename, 'wb') as wavfile:
+        wavfile.write(wave_str)
 
 
 
