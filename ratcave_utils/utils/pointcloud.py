@@ -1,7 +1,7 @@
 import numpy as np
+from scipy import linalg
 from sklearn import mixture
-from sklearn.decomposition import PCA
-
+from sklearn.decomposition import PCA, FastICA
 
 def normal_nearest_neighbors(data, n_neighbors=40):
     """Find the normal direction of a hopefully-planar cluster of n_neighbors"""
@@ -78,13 +78,12 @@ def get_vertices_at_intersections(normals, offsets, ceiling_height):
                     floor_verts.append(vertex.tolist())
 
     # Convert vertex lists to dict of NumPy arrays
-    import ipdb
-    ipdb.set_trace()
-    vertices = np.array([value for value in vertices.items()] + [[floor_verts]])
+
+    vertices = np.array([value for value in vertices.values()] + [floor_verts])
     # vertices = {key: np.array(value) for key, value in vertices.items()}
     # vertices[len(vertices)] = np.array(floor_verts)
 
-    norms = np.append(wall_normals, floor_normal)
+    norms = np.vstack((wall_normals, floor_normal))
     # norms = {key: np.array(value) for key, value in enumerate(wall_normals)}
     # norms[len(norms)] = np.array(floor_normal)
 
@@ -176,3 +175,69 @@ def meshify_arena(points, n_surfaces=None, ceiling_offset=.05):
 
     return vertices, normals
 
+
+def rotate_to_var(markers):
+    """Returns degrees to rotate about y axis so greatest marker variance points in +X direction"""
+
+    # Mean-Center
+    markers -= np.mean(markers, axis=0)
+
+    # Vector in direction of greatest variance
+    # pca = PCA(n_components=2).fit(markers[:, [0, 2]])
+    pca = FastICA(n_components=2).fit(markers[:, [0, 2]])
+    coeff_vec = pca.components_[0]
+
+    # Flip coeff_vec in direction of max variance along the vector.
+    markers_rotated = pca.fit_transform(markers)  # Rotate data to PCA axes.
+    markers_reordered = markers_rotated[markers_rotated[:,0].argsort(), :]  # Reorder Markers to go along first component
+    winlen = int(markers_reordered.shape[0]/2+1)  # Window length for moving mean (two steps, with slight overlap)
+    var_means = [np.var(markers_reordered[:winlen, 1]), np.var(markers_reordered[-winlen:, 1])] # Compute variance for each half
+    coeff_vec = coeff_vec * -1 if np.diff(var_means)[0] < 0 else coeff_vec  # Flip or not depending on which half if bigger.
+
+    # Rotation amount, in radianss
+    base_vec = np.array([1, 0])  # Vector in +X direction
+    msin, mcos = np.cross(coeff_vec, base_vec), np.dot(coeff_vec, base_vec)
+    angle = np.degrees(np.arctan2(msin, mcos))
+    print("Angle within function: {}".format(angle))
+    return angle
+
+
+def find_rotation_matrix(points1, points2):
+    """
+    Returns rotation between two sets of NxM points, which have been rotated from one another.
+
+    Parameters
+    ----------
+    points1: MxN (NPoints x NDimensions) matrix
+    points2: MxN (NPoints x NDimensions) matrix, which is 'points1' rotated by some amount.
+
+    Examples
+    --------
+    >>> find_rotation_matrix([[1., 0.], [0., .5]], [[0., 1.], [-.5, 0.]])
+    array([[ 0., -1.],
+           [ 1.,  0.]])
+
+    >>> find_rotation_matrix([[1.00001, 0.001], [0.0001, .50001]], [[0., 1.], [-.5, 0.]])
+    array([[-0., -1.],
+           [ 1.,  0.]])
+
+    >>> find_rotation_matrix([[1., 0.], [0., .5]], [[-1., 0.], [0., -.5]])
+    array([[-1.,  0.],
+           [ 0., -1.]])
+
+    >>> find_rotation_matrix([[1., 0, 0], [0, .5, 2], [-.3, .4, 0]], [[0.,  0, -1], [2, 0.5, 0],[-0, .4, .3]])
+    array([[-0., -0.,  1.],
+           [ 0.,  1., -0.],
+           [-1.,  0., -0.]])
+    """
+    p1 = np.array(points1)
+    p2 = np.array(points2)
+
+    if p1.shape != p2.shape:
+        raise ValueError("Both Matrices must be the same size (M Points x N Dimensions)")
+    if p1.shape[0] < p1.shape[1] or p2.shape[0] < p1.shape[1]:
+        raise ValueError("Underranked Matrices.  Need at least as many points as spatial dimensions.")
+
+    rotmat = np.dot(linalg.pinv(p2), p1)
+
+    return rotmat
