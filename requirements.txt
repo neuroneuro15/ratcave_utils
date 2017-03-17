@@ -4,4 +4,5 @@ matplotlib
 click
 pyglet
 ratcave
+wavefront_reader
 # motivepy

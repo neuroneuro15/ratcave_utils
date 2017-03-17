@@ -11,11 +11,12 @@ import ratcave as rc
 from os import path
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from wavefront_reader import WavefrontWriter
 
 from . import cli
 
 from _transformations import rotation_matrix
-from ratcave_utils.utils import orienting, hardware, pointcloud
+from ratcave_utils.utils import hardware, pointcloud
 
 np.set_printoptions(precision=3, suppress=True)
 
@@ -81,10 +82,9 @@ class GridScanWindow(pyglet.window.Window):
 @click.argument('output_filename', type=click.Path())
 @click.option('--body', help='Name of arena rigidbody to track', default='arena')
 @click.option('--nomeancenter', help='Flag: Skips mean-centering of arena.', type=bool, default=False)
-@click.option('--nopca', help='Flag: skips PCA-based arena marker rotation (used for aligning IR markers to image points)', type=bool, default=False)
 @click.option('--nsides', help='Number of Arena Sides.  If not given, will be estimated from data.', type=int, default=0)
 @click.option('--screen', help='Screen number to display on', default=1, type=int)
-def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsides, screen):
+def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, screen):
     """Runs Arena Scanning algorithm."""
 
     output_filename = output_filename + '.obj' if not path.splitext(output_filename)[1] else output_filename
@@ -102,16 +102,6 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
     assert body in rigid_bodies, "RigidBody {} not found in project file.  Available body names: {}".format(body, list(rigid_bodies.keys()))
     assert len(rigid_bodies[body].markers) > 5, "At least 6 markers in the arena's rigid body is required. Only {} found".format(len(rigid_bodies[body].markers))
 
-
-    # TODO: Fix bug that requires scanning be done in original orientation (doesn't affect later recreation, luckily.)
-    for attempt in range(3):  # Sometimes it doesn't work on the first try, for some reason.
-        rigid_bodies[body].reset_orientation()
-        motive.update()
-        if sum(np.abs(rigid_bodies[body].rotation)) < 1.:
-            break
-    else:
-        raise ValueError("Rigid Body Orientation not Resetting to 0,0,0 after 3 attempts.  This happens sometimes (bug), please just run the script again.")
-
     # Scan points
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[screen]
@@ -128,51 +118,42 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
     plt.show()
 
     # Get vertex positions and normal directions from the collected data.
-    vertices, normals = pointcloud.meshify(points, n_surfaces=nsides)
+    vertices, normals = pointcloud.meshify_arena(points, n_surfaces=nsides)
 
 
+    # vertices = {wall: pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
+    vertices = np.array([pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for verts in vertices])  # Triangulate
+    normals = normals.reshape(-1, 1, 3).repeat(vertices.shape[1], axis=1).reshape(-1, 3)
+    vertices = vertices.reshape(-1, 3)
 
-    # Rotate all points to be mean-centered and aligned to Optitrack Markers direction or largest variance.
-
-
-    # if not nopca:
-    #     points = np.dot(points, rotation_matrix(np.radians(orienting.rotate_to_var(markers)), [0, 1, 0])[:3, :3])
-
-    # Mean-Center and Rotate Model, in order to generate a more workable .obj file
-    if np.median([norm[1] for norm in normals.values()]) < 0:
-        for norm in normals.values():
-            norm[1] *= -1
-
-
-
+    # me
+    if not nomeancenter:
+        vertmean = np.mean(vertices, axis=0)
+        # vertmean = np.array([np.mean(np.unique(verts)) for verts in vertices.T])  # to avoid counting the same vertices twice.
+        vertices -= vertmean
+        points -= vertmean
+        rigid_bodies[body].location = vertmean
 
 
-
-
-
-
-
-    print('running in develop mode.')
-
-
-
-
-
+    # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
+    writer = WavefrontWriter.from_arrays(body, vertices, normals)
+    with open(output_filename, 'w') as f:
+        writer.dump(output_filename)
 
 
     # Show resulting plot with points and model in same place.
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
+
     ax.scatter(*points[::12, :].T)
-    for idx, verts in vertices.items():
-        ax.plot(*np.vstack((verts, verts[0, :])).T)
+    ax.scatter(*vertices.T, c='r')
     plt.show()
 
-    # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
-    vertices = {wall: pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
-    wave_str = pointcloud.to_wavefront(body, vertices, normals)
-    with open(output_filename, 'wb') as wavfile:
-        wavfile.write(wave_str)
+    for el in range(3):
+        rigid_bodies[body].reset_orientation()
+        motive.update()
+    motive.save_project(motive_filename)
+
 
 
 

@@ -1,9 +1,7 @@
 import numpy as np
+from scipy import linalg
 from sklearn import mixture
-from sklearn.decomposition import PCA
-
-from . import filters
-
+from sklearn.decomposition import PCA, FastICA
 
 def normal_nearest_neighbors(data, n_neighbors=40):
     """Find the normal direction of a hopefully-planar cluster of n_neighbors"""
@@ -80,11 +78,14 @@ def get_vertices_at_intersections(normals, offsets, ceiling_height):
                     floor_verts.append(vertex.tolist())
 
     # Convert vertex lists to dict of NumPy arrays
-    vertices = {key: np.array(value) for key, value in vertices.items()}
-    vertices[len(vertices)] = np.array(floor_verts)
 
-    norms = {key: np.array(value) for key, value in enumerate(wall_normals)}
-    norms[len(norms)] = np.array(floor_normal)
+    vertices = np.array([value for value in vertices.values()] + [floor_verts])
+    # vertices = {key: np.array(value) for key, value in vertices.items()}
+    # vertices[len(vertices)] = np.array(floor_verts)
+
+    norms = np.vstack((wall_normals, floor_normal))
+    # norms = {key: np.array(value) for key, value in enumerate(wall_normals)}
+    # norms[len(norms)] = np.array(floor_normal)
 
     return vertices, norms
 
@@ -125,39 +126,7 @@ def fan_triangulate(vertices):
     return np.array([el for (ii, jj) in zip(vertices[1:-1], vertices[2:]) for el in [vertices[0], ii, jj]])
 
 
-def to_wavefront(mesh_name, vert_dict, normal_dict):
-    """Returns a wavefront .obj string using pre-triangulated vertex dict and normal dict as reference."""
-
-    # Put header in string
-    wavefront_str = "# Blender v2.69 (sub 5) OBJ File: ''\n" + "# www.blender.org\n" + "o {name}\n".format(name=mesh_name)
-
-    # Write Vertex data from vert_dict
-    for wall in vert_dict:
-        for vert in vert_dict[wall]:
-            wavefront_str += "v {0} {1} {2}\n".format(*vert)
-
-    # Write (false) UV Texture data
-    wavefront_str += "vt 1.0 1.0\n"
-
-    # Write Normal data from normal_dict
-    for wall, norm in normal_dict.items():
-        wavefront_str += "vn {0} {1} {2}\n".format(*norm)
-
-    # Write Face Indices (1-indexed)
-    vert_idx = 0
-    for wall in vert_dict:
-        for _ in range(0, len(vert_dict[wall]), 3):
-            wavefront_str += 'f '
-            for vert in range(3): # 3 vertices in each face
-                vert_idx += 1
-                wavefront_str += "{v}/1/{n} ".format(v=vert_idx, n=wall+1)
-            wavefront_str = wavefront_str[:-1] + '\n'  # Cutoff trailing space and add a newline.
-
-    # Return Wavefront string
-    return wavefront_str
-
-
-def meshify(points, n_surfaces=None, mean_center=False):
+def meshify_arena(points, n_surfaces=None, ceiling_offset=.05):
     """Returns vertex and normal coordinates for a 3D mesh model from an Nx3 array of points after filtering.
 
     Args:
@@ -176,17 +145,15 @@ def meshify(points, n_surfaces=None, mean_center=False):
     normals_f, explained_variances = normal_nearest_neighbors(points_f)
 
     # Histogram filter: take the 70% best-planar data to model.
-
-    normfilter = filters.hist_mask(explained_variances[:, 2], threshold=.7, keep='lower')
+    ll = explained_variances[:, 2]
+    normfilter = ll < np.sort(ll)[int(len(ll) * .7)]
     points_ff = points_f[normfilter, :]
     normals_ff = normals_f[normfilter, :]
 
-    ceiling_height = points_ff[:, 1].max() + .005
-
     # Fit the filtered normal data using a gaussian classifier.
-    min_clusters = n_surfaces if n_surfaces else 4
-    max_clusters = n_surfaces + 1 if n_surfaces else 15
-    model = cluster_normals(normals_ff, min_clusters=min_clusters, max_clusters=max_clusters)
+    model = cluster_normals(normals_ff,
+                            min_clusters=n_surfaces if n_surfaces else 4,
+                            max_clusters=n_surfaces + 1 if n_surfaces else 15)
 
     # Get normals from model means
     surface_normals = model.means_  # n_components x 3 normals array, giving mean normal for each surface.
@@ -194,13 +161,83 @@ def meshify(points, n_surfaces=None, mean_center=False):
     # Calculate mean offset of vertices for each wall
     ids = model.predict(normals_ff)  # index for each point, giving the wall id number (0:n_components)
 
-    surface_offsets = np.zeros_like(surface_normals)
-    for idx in range(len(surface_normals)):
-        surface_offsets[idx, :] = np.mean(points_ff[ids==idx, :], axis=0)
+    #
+    surface_offsets = np.array([np.nanmean(points_ff[ids == idx], axis=0) for idx in range(ids.max() + 1)])
+    # surface_offsets = np.zeros_like(surface_normals)
+    # for idx, _ in enumerate(surface_normals):
+    #
+    #     surface_offsets[idx, :] = np.mean(points_ff[ids==idx, :], axis=0)
+    # assert not np.isnan(surface_offsets.sum()), "Incorrect model: No Points found to assign to at least one wall for intersection calculation."
 
-    assert not np.isnan(surface_offsets.sum()), "Incorrect model: No Points found to assign to at least one wall for intersection calculation."
 
     ## CALCULATE PLANE INTERSECTIONS TO GET VERTICES ##
-    vertices, normals = get_vertices_at_intersections(surface_normals, surface_offsets, ceiling_height)
+    vertices, normals = get_vertices_at_intersections(surface_normals, surface_offsets, points_ff[:, 1].max() + ceiling_offset)
+
     return vertices, normals
 
+
+def rotate_to_var(markers):
+    """Returns degrees to rotate about y axis so greatest marker variance points in +X direction"""
+
+    # Mean-Center
+    markers -= np.mean(markers, axis=0)
+
+    # Vector in direction of greatest variance
+    # pca = PCA(n_components=2).fit(markers[:, [0, 2]])
+    pca = FastICA(n_components=2).fit(markers[:, [0, 2]])
+    coeff_vec = pca.components_[0]
+
+    # Flip coeff_vec in direction of max variance along the vector.
+    markers_rotated = pca.fit_transform(markers)  # Rotate data to PCA axes.
+    markers_reordered = markers_rotated[markers_rotated[:,0].argsort(), :]  # Reorder Markers to go along first component
+    winlen = int(markers_reordered.shape[0]/2+1)  # Window length for moving mean (two steps, with slight overlap)
+    var_means = [np.var(markers_reordered[:winlen, 1]), np.var(markers_reordered[-winlen:, 1])] # Compute variance for each half
+    coeff_vec = coeff_vec * -1 if np.diff(var_means)[0] < 0 else coeff_vec  # Flip or not depending on which half if bigger.
+
+    # Rotation amount, in radianss
+    base_vec = np.array([1, 0])  # Vector in +X direction
+    msin, mcos = np.cross(coeff_vec, base_vec), np.dot(coeff_vec, base_vec)
+    angle = np.degrees(np.arctan2(msin, mcos))
+    print("Angle within function: {}".format(angle))
+    return angle
+
+
+def find_rotation_matrix(points1, points2):
+    """
+    Returns rotation between two sets of NxM points, which have been rotated from one another.
+
+    Parameters
+    ----------
+    points1: MxN (NPoints x NDimensions) matrix
+    points2: MxN (NPoints x NDimensions) matrix, which is 'points1' rotated by some amount.
+
+    Examples
+    --------
+    >>> find_rotation_matrix([[1., 0.], [0., .5]], [[0., 1.], [-.5, 0.]])
+    array([[ 0., -1.],
+           [ 1.,  0.]])
+
+    >>> find_rotation_matrix([[1.00001, 0.001], [0.0001, .50001]], [[0., 1.], [-.5, 0.]])
+    array([[-0., -1.],
+           [ 1.,  0.]])
+
+    >>> find_rotation_matrix([[1., 0.], [0., .5]], [[-1., 0.], [0., -.5]])
+    array([[-1.,  0.],
+           [ 0., -1.]])
+
+    >>> find_rotation_matrix([[1., 0, 0], [0, .5, 2], [-.3, .4, 0]], [[0.,  0, -1], [2, 0.5, 0],[-0, .4, .3]])
+    array([[-0., -0.,  1.],
+           [ 0.,  1., -0.],
+           [-1.,  0., -0.]])
+    """
+    p1 = np.array(points1)
+    p2 = np.array(points2)
+
+    if p1.shape != p2.shape:
+        raise ValueError("Both Matrices must be the same size (M Points x N Dimensions)")
+    if p1.shape[0] < p1.shape[1] or p2.shape[0] < p1.shape[1]:
+        raise ValueError("Underranked Matrices.  Need at least as many points as spatial dimensions.")
+
+    rotmat = np.dot(linalg.pinv(p2), p1)
+
+    return rotmat
