@@ -82,10 +82,9 @@ class GridScanWindow(pyglet.window.Window):
 @click.argument('output_filename', type=click.Path())
 @click.option('--body', help='Name of arena rigidbody to track', default='arena')
 @click.option('--nomeancenter', help='Flag: Skips mean-centering of arena.', type=bool, default=False)
-@click.option('--nopca', help='Flag: skips PCA-based arena marker rotation (used for aligning IR markers to image points)', type=bool, default=False)
 @click.option('--nsides', help='Number of Arena Sides.  If not given, will be estimated from data.', type=int, default=0)
 @click.option('--screen', help='Screen number to display on', default=1, type=int)
-def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsides, screen):
+def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, screen):
     """Runs Arena Scanning algorithm."""
 
     output_filename = output_filename + '.obj' if not path.splitext(output_filename)[1] else output_filename
@@ -102,15 +101,6 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
     rigid_bodies = motive.get_rigid_bodies()
     assert body in rigid_bodies, "RigidBody {} not found in project file.  Available body names: {}".format(body, list(rigid_bodies.keys()))
     assert len(rigid_bodies[body].markers) > 5, "At least 6 markers in the arena's rigid body is required. Only {} found".format(len(rigid_bodies[body].markers))
-
-    # TODO: Fix bug that requires scanning be done in original orientation (doesn't affect later recreation, luckily.)
-    for attempt in range(3):  # Sometimes it doesn't work on the first try, for some reason.
-        rigid_bodies[body].reset_orientation()
-        motive.update()
-        if sum(np.abs(rigid_bodies[body].rotation)) < 1.:
-            break
-    else:
-        raise ValueError("Rigid Body Orientation not Resetting to 0,0,0 after 3 attempts.  This happens sometimes (bug), please just run the script again.")
 
     # Scan points
     display = pyglet.window.get_platform().get_default_display()
@@ -145,11 +135,9 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
         # vertmean = np.array([np.mean(np.unique(verts)) for verts in vertices.T])  # to avoid counting the same vertices twice.
         vertices -= vertmean
         points -= vertmean
-    if not nopca:
-        pca_rotangle = pointcloud.rotate_to_var(points)
-        print("PCA Rotation Angle: {}".format(pca_rotangle))
-        pca_rotmat = rotation_matrix(np.radians(pca_rotangle), [0, 1, 0])
-        vertices = np.dot(vertices, pca_rotmat[:3, :3])
+        rigid_bodies[body].location = vertmean
+
+
 
     # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
     writer = WavefrontWriter.from_arrays(body, vertices, normals)
@@ -164,6 +152,14 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nopca, nsid
     ax.scatter(*points[::12, :].T)
     ax.scatter(*vertices.T, c='r')
     plt.show()
+
+
+    for el in range(3):
+        rigid_bodies[body].reset_orientation()
+        motive.update()
+    motive.save_project(motive_filename)
+
+
 
 
 if __name__ == '__main__':
