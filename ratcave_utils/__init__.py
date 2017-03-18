@@ -16,5 +16,6 @@ from . import track_rigidbody
 from . import view_mesh
 from . import dots_test
 from . import view_arenafit
+from . import vr_demo
 from . import utils
 from .logging import Logger

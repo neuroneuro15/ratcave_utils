@@ -15,6 +15,7 @@ setup(
             'dots_test = ratcave_utils.dots_test:show_dots',
             'view_mesh = ratcave_utils.view_mesh:view_mesh',
             'view_arenafit = ratcave_utils.view_arenafit:view_arenafit',
+            'vr_demo = ratcave_utils.vr_demo:vr_demo',
         ],
     }
 )
