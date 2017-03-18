@@ -94,6 +94,10 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, scr
     motive_filename = motive_filename.encode()
     motive.initialize()
     motive.load_project(motive_filename)
+
+    # Get old camera settings before changing them, to go back to them before saving later.
+    cam_settings = [cam.settings for cam in motive.get_cams()]
+    frame_rate_old = motive.get_cams()[0].frame_rate
     hardware.motive_camera_vislight_configure()
     motive.update()
 
@@ -152,6 +156,15 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, scr
     for el in range(3):
         rigid_bodies[body].reset_orientation()
         motive.update()
+
+    # Reapply old camera settings, then save.
+    for setting, cam in zip(cam_settings, motive.get_cams()):
+        cam.settings = setting
+        cam.image_gain = 1
+        cam.frame_rate = frame_rate_old
+        if 'Prime 13' in cam.name:
+            cam.set_filter_switch(True)
+    motive.update()
     motive.save_project(motive_filename)
 
 

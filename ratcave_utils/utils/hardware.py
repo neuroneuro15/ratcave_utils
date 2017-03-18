@@ -8,8 +8,9 @@ def motive_camera_vislight_configure():
         cam.frame_rate = 30
 
         if 'Prime 13' in cam.name:
-            cam.set_settings(video_mode=2, exposure=33000, threshold=200, intensity=0)  #check if 480 corresponds to these thousands described in motive
+            cam.settings = motive.CameraSettings(video_mode=2, exposure=33000, threshold=200, intensity=0)
             cam.image_gain = 8  # 8 is the maximum image gain setting
             cam.set_filter_switch(False)
         else:
-            cam.set_settings(0, cam.exposure, cam.threshold, cam.intensity)
+            cam.settings = motive.CameraSettings(video_mode=0, exposure=cam.exposure, threshold=cam.threshold, intensity=cam.intensity)
+
