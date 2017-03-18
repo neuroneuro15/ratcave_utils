@@ -39,7 +39,7 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
 
     reader = rc.WavefrontReader(rc.resources.obj_primitives)
     mesh = reader.get_mesh('Monkey', scale=.1, position=(0, 0, 0))
-    mesh.rotation = mesh.rotation.to_quaternion()
+    # mesh.rotation = mesh.rotation.to_quaternion()
 
     arena = rc.WavefrontReader(arena_filename.encode()).get_mesh('Arena')
     arena.rotation = arena.rotation.to_quaternion()
@@ -88,7 +88,8 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
         motive.update()
         mesh.position.xyz = arena_body.location
         # mesh.position.y -= .5
-        mesh.rotation.xyzw = arena_body.rotation_quats
+        # mesh.rotation.xyzw = arena_body.rotation_quats
+        mesh.rotation.y += 10 * dt
 
         arena.position.xyz = arena_body.location
         arena.rotation.xyzw = arena_body.rotation_quats
