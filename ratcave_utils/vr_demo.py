@@ -1,12 +1,15 @@
+
+import pyglet
+pyglet.options['debug_gl'] = False
 import time
 import motive
-import pyglet
 from pyglet.window import key
 import click
 import ratcave as rc
 from . import cli
 import numpy as np
 import pickle
+import pyglet.gl as gl
 
 
 
@@ -31,7 +34,8 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
     # Load projector's Camera object, created from the calib_projector ratcave_utils CLI tool.
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[screen]
-    window = pyglet.window.Window(fullscreen=True, screen=screen)
+    window = pyglet.window.Window(fullscreen=True, screen=screen, vsync=False)
+
 
     fbo = rc.FBO(rc.TextureCube(width=4096, height=4096))
 
@@ -39,6 +43,8 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
 
     reader = rc.WavefrontReader(rc.resources.obj_primitives)
     mesh = reader.get_mesh('Monkey', scale=.1, position=(0, 0, 0))
+    mesh.uniforms['ambient'] = .15, .15, .15
+
     # mesh.rotation = mesh.rotation.to_quaternion()
 
     arena = rc.WavefrontReader(arena_filename.encode()).get_mesh('Arena')
@@ -88,8 +94,8 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
         motive.update()
         mesh.position.xyz = arena_body.location
         # mesh.position.y -= .5
-        # mesh.rotation.xyzw = arena_body.rotation_quats
-        mesh.rotation.y += 10 * dt
+        mesh.rotation.xyzw = arena_body.rotation_quats
+        # mesh.rotation.y += 10 * dt
 
         arena.position.xyz = arena_body.location
         arena.rotation.xyzw = arena_body.rotation_quats
