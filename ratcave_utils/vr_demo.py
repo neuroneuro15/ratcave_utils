@@ -1,17 +1,9 @@
 
 import pyglet
-pyglet.options['debug_gl'] = False
-import time
 import motive
-from pyglet.window import key
 import click
 import ratcave as rc
 from . import cli
-import numpy as np
-import pickle
-import pyglet.gl as gl
-
-
 
 @cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
@@ -42,7 +34,8 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
     shader3d = rc.Shader.from_file(*rc.resources.genShader)
 
     reader = rc.WavefrontReader(rc.resources.obj_primitives)
-    mesh = reader.get_mesh('Monkey', scale=.1, position=(0, 0, 0))
+    mesh = reader.get_mesh('Monkey', scale=.1, position=(0, 0, .3))
+    mesh.position.y = .6
     mesh.uniforms['ambient'] = .15, .15, .15
 
     # mesh.rotation = mesh.rotation.to_quaternion()
@@ -51,6 +44,12 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
     arena.rotation = arena.rotation.to_quaternion()
     arena.texture = fbo.texture
 
+    floor = reader.get_mesh('Plane', scale=50, position=(0, 0, 0), mean_center=True)
+
+    # floor.scale.x = 20
+    floor.rotation.x = -90
+    floor.texture = fbo.texture
+    # floor.rotation.x = 180
 
     vr_scene = rc.Scene(meshes=[mesh], bgColor=(0., 0, 0))
     vr_scene.camera.projection.fov_y = 90
@@ -64,7 +63,8 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
     shader_deferred = rc.Shader.from_file(*rc.resources.deferredShader)
 
 
-    scene = rc.Scene(meshes=[arena], bgColor=(0., 0., .1))
+    scene = rc.Scene(meshes=[arena, floor], bgColor=(0., 0., .1))
+
 
 
     camera = rc.Camera.from_pickle(projector_filename.encode())
@@ -92,9 +92,9 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
 
     def update_body(dt, body):
         motive.update()
-        mesh.position.xyz = arena_body.location
+        # mesh.position.xyz = arena_body.location
         # mesh.position.y -= .5
-        mesh.rotation.xyzw = arena_body.rotation_quats
+        # mesh.rotation.xyzw = arena_body.rotation_quats
         # mesh.rotation.y += 10 * dt
 
         arena.position.xyz = arena_body.location

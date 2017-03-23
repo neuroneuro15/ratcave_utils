@@ -1,6 +1,7 @@
+import pyglet
 import time
 import motive
-import pyglet
+
 from pyglet.window import key
 import click
 import ratcave as rc
