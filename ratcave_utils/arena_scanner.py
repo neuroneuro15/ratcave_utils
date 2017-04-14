@@ -71,7 +71,7 @@ class GridScanWindow(pyglet.window.Window):
             motive.update()
 
         markers = motive.get_unident_markers()
-        markers = [marker for marker in markers if 0.08 < marker[1] < 0.50]
+        markers = [marker for marker in markers]# if 0.08 < marker[1] < 0.50]
 
         click.echo("{} markers detected.".format(len(markers)))
         self.marker_pos.extend(markers)
@@ -104,7 +104,15 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, scr
     # Get Arena's Rigid Body
     rigid_bodies = motive.get_rigid_bodies()
     assert body in rigid_bodies, "RigidBody {} not found in project file.  Available body names: {}".format(body, list(rigid_bodies.keys()))
-    assert len(rigid_bodies[body].markers) > 5, "At least 6 markers in the arena's rigid body is required. Only {} found".format(len(rigid_bodies[body].markers))
+    # assert len(rigid_bodies[body].markers) > 5, "At least 6 markers in the arena's rigid body is required. Only {} found".format(len(rigid_bodies[body].markers))
+
+    for el in range(3):
+        rigid_bodies[body].reset_orientation()
+        rigid_bodies[body].reset_pivot_offset()
+        motive.update()
+    assert np.isclose(np.array(rigid_bodies[body].rotation), 0).all(), "Orientation didn't reset."
+    assert np.isclose(np.array(rigid_bodies[body].location), np.mean(rigid_bodies[body].point_cloud_markers, axis=0)).all(), "Pivot didn't reset."
+    print("Location and Orientation Successfully reset.")
 
     # Scan points
     display = pyglet.window.get_platform().get_default_display()
@@ -123,24 +131,48 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, scr
 
     # Get vertex positions and normal directions from the collected data.
     vertices, normals = pointcloud.meshify_arena(points, n_surfaces=nsides)
+    vertices, face_indices = pointcloud.face_index(vertices)
+    face_indices = pointcloud.fan_triangulate(face_indices)
 
 
-    # vertices = {wall: pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for wall, verts in vertices.items()}  # Triangulate
-    vertices = np.array([pointcloud.fan_triangulate(pointcloud.reorder_vertices(verts)) for verts in vertices])  # Triangulate
-    normals = normals.reshape(-1, 1, 3).repeat(vertices.shape[1], axis=1).reshape(-1, 3)
-    vertices = vertices.reshape(-1, 3)
+
+    # Reapply old camera settings, then save.
+    for setting, cam in zip(cam_settings, motive.get_cams()):
+        cam.settings = setting
+        cam.image_gain = 1
+        cam.frame_rate = frame_rate_old
+        if 'Prime 13' in cam.name:
+            cam.set_filter_switch(True)
+    motive.update()
+
 
     # me
     if not nomeancenter:
-        vertmean = np.mean(vertices, axis=0)
+
+        # import ipdb
+        # ipdb.set_trace()
+        vertmean = np.mean(vertices[face_indices.flatten(), :], axis=0)
+
         # vertmean = np.array([np.mean(np.unique(verts)) for verts in vertices.T])  # to avoid counting the same vertices twice.
         vertices -= vertmean
         points -= vertmean
-        rigid_bodies[body].location = vertmean
+        print('Old Location: {}'.format(rigid_bodies[body].location))
+        arena = rigid_bodies[body]
+        for attempt in range(300):
+            print('Trying to Set New Rigid Body location, attempt {}...'.format(attempt))
+            arena.reset_pivot_offset()
+            arena.location = vertmean
+            if np.isclose(arena.location, vertmean, rtol=.001).all():
+                break
+        else:
+            raise ValueError('Motive failed to properly shift pivot to center of mesh')
+        print('Vertex Mean: {}'.format(vertmean))
+        print('New Location: {}'.format(arena.location))
 
 
     # Write wavefront .obj file to app data directory and user-specified directory for importing into Blender.
-    writer = WavefrontWriter.from_arrays(body, vertices, normals)
+
+    writer = WavefrontWriter.from_indexed_arrays(body, vertices, normals, face_indices)
     with open(output_filename, 'w') as f:
         writer.dump(output_filename)
 
@@ -153,21 +185,9 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, scr
     ax.scatter(*vertices.T, c='r')
     plt.show()
 
-    for el in range(3):
-        rigid_bodies[body].reset_orientation()
-        motive.update()
 
-    # Reapply old camera settings, then save.
-    for setting, cam in zip(cam_settings, motive.get_cams()):
-        cam.settings = setting
-        cam.image_gain = 1
-        cam.frame_rate = frame_rate_old
-        if 'Prime 13' in cam.name:
-            cam.set_filter_switch(True)
-    motive.update()
-    motive.save_project(motive_filename)
-
-
+    # motive.save_project(motive_filename)
+    motive.save_project(path.splitext(motive_filename)[0]+'_scanned.ttp')
 
 
 if __name__ == '__main__':

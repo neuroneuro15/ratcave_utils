@@ -121,9 +121,32 @@ def reorder_vertices(vertices):
     return vertices[nn_i, :]
 
 
-def fan_triangulate(vertices):
+def face_index(vertices):
+    """Takes an MxNx3 array and returns a 2D vertices and MxN face_indices arrays"""
+    new_verts = []
+    face_indices = []
+    for wall in vertices:
+        face_wall = []
+        for vert in wall:
+            if new_verts:
+                if not np.isclose(vert, new_verts).all(axis=1).any():
+                    new_verts.append(vert)
+            else:
+                    new_verts.append(vert)
+            face_index = np.where(np.isclose(vert, new_verts).all(axis=1))[0][0]
+            face_wall.append(face_index)
+        face_indices.append(face_wall)
+    return np.array(new_verts), np.array(face_indices)
+
+
+def fan_triangulate(indices):
     """Return an array of vertices in triangular order using a fan triangulation algorithm."""
-    return np.array([el for (ii, jj) in zip(vertices[1:-1], vertices[2:]) for el in [vertices[0], ii, jj]])
+    if len(indices[0]) != 4:
+        raise ValueError("Assumes working with a sequence of quad indices")
+    new_indices = []
+    for face in indices:
+        new_indices.extend([face[[0, 2, 3]], face[[0, 3, 1]]])
+    return np.array(new_indices)
 
 
 def meshify_arena(points, n_surfaces=None, ceiling_offset=.05):
