@@ -78,7 +78,7 @@ class PointScanWindow(pyglet.window.Window):
             motive.update()
 
         markers = motive.get_unident_markers()
-        markers = [marker for marker in markers if marker[1] < 0.50 and marker[1] > 0.08]
+        markers = [marker for marker in markers]# if marker[1] < 0.50 and marker[1] > 0.08]
         if len(markers) == 1:
             click.echo(markers)
             self.screen_pos.append([self.mesh.position.x, self.mesh.position.y])
