@@ -30,6 +30,7 @@ class DotWindow(pyglet.window.Window):
         spheres = gen_spheres(scale=scale, color=color)
         self.scene = rc.Scene(meshes=spheres, bgColor=(0,)*3)
         cam = self.scene.camera
+        self.shader = rc.Shader.from_file(*rc.resources.genShader)
         cam.projection = rc.OrthoProjection(origin='center', coords='relative')
 
         cam.update()
@@ -38,7 +39,7 @@ class DotWindow(pyglet.window.Window):
 
 
     def on_draw(self):
-        with rc.resources.genShader:
+        with self.shader:
             self.scene.draw()
 
 

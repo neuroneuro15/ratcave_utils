@@ -69,6 +69,9 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
     motive.update()
     rb = motive.get_rigid_bodies()['Arena']
 
+    # for el in range(3):
+    #     rb.reset_orientation()
+
 
     def update_arena_position(dt):
         motive.update()
@@ -78,7 +81,7 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
 
         sphere.position.xyz = rb.location
         label.text = "aspect={}, fov_y={}, ({:2f}, {:2f}, {:2f}), ({:2f}, {:2f}, {:2f})".format(scene.camera.projection.aspect,
-                                                                                                scene.camera.projection.fov_y,                                                                                                *(arena.position.xyz + rb.location))
+                                                                                                scene.camera.projection.fov_y,    *(arena.position.xyz + rb.location))
     pyglet.clock.schedule(update_arena_position)
 
     pyglet.app.run()

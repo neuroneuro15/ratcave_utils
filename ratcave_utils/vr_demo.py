@@ -26,7 +26,7 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
     # Load projector's Camera object, created from the calib_projector ratcave_utils CLI tool.
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[screen]
-    window = pyglet.window.Window(fullscreen=True, screen=screen, vsync=False)
+    window = pyglet.window.Window(fullscreen=False, screen=screen, vsync=False)
 
 
     fbo = rc.FBO(rc.TextureCube(width=4096, height=4096))
@@ -34,7 +34,7 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
     shader3d = rc.Shader.from_file(*rc.resources.genShader)
 
     reader = rc.WavefrontReader(rc.resources.obj_primitives)
-    mesh = reader.get_mesh('Monkey', scale=.1, position=(0, 0, .3))
+    mesh = reader.get_mesh('Monkey', scale=.022, position=(0, 0, .3))
     mesh.position.y = .6
     mesh.uniforms['ambient'] = .15, .15, .15
 
@@ -51,7 +51,7 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
     floor.texture = fbo.texture
     # floor.rotation.x = 180
 
-    vr_scene = rc.Scene(meshes=[mesh], bgColor=(0., 0, 0))
+    vr_scene = rc.Scene(meshes=[mesh], bgColor=(0., .3, 0))
     vr_scene.camera.projection.fov_y = 90
     vr_scene.camera.projection.aspect = 1.
     vr_scene.camera.projection.z_near = .005
@@ -63,7 +63,7 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
     shader_deferred = rc.Shader.from_file(*rc.resources.deferredShader)
 
 
-    scene = rc.Scene(meshes=[arena, floor], bgColor=(0., 0., .1))
+    scene = rc.Scene(meshes=[arena, floor], bgColor=(0., 0., .3))
 
 
 
@@ -92,8 +92,8 @@ def vr_demo(motive_filename, projector_filename, arena_filename, body, screen):
 
     def update_body(dt, body):
         motive.update()
-        # mesh.position.xyz = arena_body.location
-        # mesh.position.y -= .5
+        mesh.position.xyz = arena_body.location
+        mesh.position.y -= .07
         # mesh.rotation.xyzw = arena_body.rotation_quats
         # mesh.rotation.y += 10 * dt
 
