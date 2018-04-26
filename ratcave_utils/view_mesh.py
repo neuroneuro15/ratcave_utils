@@ -24,24 +24,18 @@ def view_mesh(body, obj_filename):
                      camera=camera,
                      light=light,
                      bgColor=(.2, .4, .2))
-    scene.gl_states = scene.gl_states[:-1]
+    #scene.gl_states = scene.gl_states[:-1]
 
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[0]
     window = pyglet.window.Window(fullscreen=True, screen=screen)
 
-    fbo = rc.FBO(rc.Texture(width=4096, height=4096))
-    quad = rc.gen_fullscreen_quad()
-    quad.texture = fbo.texture
-
     label = pyglet.text.Label()
 
     @window.event
     def on_draw():
-        with rc.resources.genShader, fbo:
+        with rc.resources.default_shader:
             scene.draw()
-        with rc.resources.deferredShader:
-            quad.draw()
 
         verts_mean = np.ptp(mesh.vertices, axis=0)
         label.text = 'Name: {}\nRotation: {}\nSize: {} x {} x {}'.format(mesh.name,
@@ -61,6 +55,10 @@ def view_mesh(body, obj_filename):
         mesh.rotation.x = -360 * y
         mesh.rotation.y = 360 * x
 
+    @window.event
+    def on_mouse_scroll(x, y, scroll_x, scroll_y):
+        mesh.scale.xyz = mesh.scale.x + scroll_y * (mesh.scale.x * .05)
+        print(mesh.scale)
 
     pyglet.app.run()
 
