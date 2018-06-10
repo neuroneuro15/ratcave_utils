@@ -21,8 +21,6 @@ def view_arenafit(projector_filename, arena_filename, screen):
     with open(projector_filename) as f:
         camera = pickle.load(f)
     camera.reset_uniforms()
-    # camera.projection.fov_y = 39
-    # camera.projection.z_far = 10.
     light = rc.Light(position=(camera.position.xyz))
 
     root = rc.EmptyEntity()
@@ -67,13 +65,13 @@ def view_arenafit(projector_filename, arena_filename, screen):
         elif sym == key.RIGHT:
             scene.camera.rotation.z -= .1
         elif sym == key.A:
-            scene.camera.rotation.y -= .005
+            scene.camera.rotation.y -= .1
         elif sym == key.D:
-            scene.camera.rotation.y += .005
+            scene.camera.rotation.y += .1
         elif sym == key.W:
-            scene.camera.rotation.x += .005
+            scene.camera.rotation.x += .1
         elif sym == key.S:
-            scene.camera.rotation.x -= .005
+            scene.camera.rotation.x -= .1
 
 
         scene.camera.reset_uniforms()  # TODO: Fix Pickle bug so this isn't needed!
