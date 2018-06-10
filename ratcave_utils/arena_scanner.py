@@ -63,15 +63,15 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, scr
     window = pyglet.window.Window(screen=screen, fullscreen=True)
     window.dispatch_events()
     gl.glEnable(gl.GL_POINT_SMOOTH)
-    gl.glPointSize(6.)
+    gl.glPointSize(11.)
 
-    grid_coords = np.array(list(it.product(*(range(0, 2000, 50),)*2)), dtype=int)
+    grid_coords = np.array(list(it.product(*(range(0, 2000, 70),)*2)), dtype=int)
     marker_pos = []
-    for t in np.linspace(0, 2 * np.pi, 10):
+    for t in np.linspace(0, 2 * np.pi, 40):
 
         # Draw Points
         window.clear()
-        grid_pos = int(np.cos(t) * 25), int(np.sin(t) * 20)
+        grid_pos = int(np.cos(t) * 25), int(np.sin(t) * 25)
         points = grid_coords + grid_pos
         pyglet.graphics.draw(len(grid_coords), pyglet.gl.GL_POINTS, ('v2i', points.flatten()))
         window.flip()

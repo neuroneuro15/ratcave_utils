@@ -66,7 +66,7 @@ def calibrate(img_points, obj_points):
 @cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
 @click.argument('projector_filename', type=click.Path())
-@click.option('--npoints', default=100, help="Number of data points to collect before estimating position")
+@click.option('--npoints', default=350, help="Number of data points to collect before estimating position")
 @click.option('--fps', default=15, help="Frame rate to update window at.")
 @click.option('--screen', default=1, help='Screen number to display on.')
 def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
@@ -111,7 +111,7 @@ def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
             click.echo(markers)
             img_points.append([x / float(window.width) - 0.5, (y - float(window.height) / 2.) / window.width])
             obj_points.extend(markers)
-    window.close()
+
     img_points, obj_points = np.array(img_points), np.array(obj_points)
 
     # Check Data Quality: Plot XY relationship between data
@@ -127,17 +127,17 @@ def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
     click.echo(model_matrix)
 
     # Create RatCAVE Camera for use in the project and save it in a pickle file.
-    position = model_matrix[:3, -1]
-    rotation_matrix = np.linalg.inv(model_matrix[:3, :3])
-    cam_dir = np.dot([0, 0, -1], rotation_matrix)  # Rotate from -Z vector (default OpenGL camera direction)
-    rot_vec = np.vstack((position, position + cam_dir))
 
+    rotation_matrix = np.linalg.inv(model_matrix[:3, :3])
 
     camera = rc.Camera()
     camera.position.xyz = model_matrix[:3, -1]
     camera.rotation = camera.rotation.from_matrix(model_matrix)
     camera.update()
     camera.projection.fov_y = .0338 * window.height + 4.47  # Calculated just for our projector.
+    camera.projection.aspect = window.width / float(window.height)
+    window.close()
+
     camera.projection.update()
     click.echo(camera.position)
     click.echo(camera.rotation)
@@ -147,6 +147,10 @@ def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(*obj_points.T)
+
+    position = model_matrix[:3, -1]
+    cam_dir = np.dot([0, 0, -1], rotation_matrix)  # Rotate from -Z vector (default OpenGL camera direction)
+    rot_vec = np.vstack((position, position + cam_dir))
     ax.plot(*rot_vec.T)
     ax.scatter(*camera.position.xyz)
     plt.show()
