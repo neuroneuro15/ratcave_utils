@@ -13,7 +13,7 @@ def cli():
     pass
 
 from . import arena_scanner
-# from . import calib_projector
+from . import calib_projector
 #from . import track_rigidbody
 from . import view_mesh
 from . import dots_test

@@ -6,7 +6,7 @@ import pickle
 from os import path
 
 import click
-import cv2
+# import cv2
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
@@ -21,52 +21,6 @@ from ratcave_utils.utils import hardware
 import _transformations as trans
 
 np.set_printoptions(precision=3, suppress=True)
-
-
-class PointScanWindow(pyglet.window.Window):
-
-    def __init__(self, max_points=1000, *args, **kwargs):
-        """
-        Returns Window with everything needed for doing projector calibration.
-
-        Keyword Args:
-            -max_points (int): total number of data points to collect before exiting.
-
-        """
-        super(PointScanWindow, self).__init__(*args, **kwargs)
-        gl.glPointSize(20)
-        gl.glEnable(gl.GL_POINT_SMOOTH)
-        self.curr_pos = 0, 0
-        
-        self.max_points = max_points
-        self.screen_pos = []
-        self.marker_pos = []
-        pyglet.clock.schedule(self.detect_projection_point)
-        pyglet.clock.schedule(self._close_if_max_points_reached)
-
-    def _close_if_max_points_reached(self, dt):
-        if len(self.screen_pos) >= self.max_points:
-            self.close()
-
-    def on_draw(self):
-        """Move the mesh, then draw it!"""
-        self.clear()
-        self.curr_pos = random.randint(0, self.width), random.randint(0, self.height)
-        pyglet.graphics.draw(1, gl.GL_POINTS, ('v2i', self.curr_pos), ('c3B', (255, 255, 255)))
-
-    def detect_projection_point(self, dt):
-        """Use Motive to detect the projected mesh in 3D space"""
-        motive.flush_camera_queues()
-        for el in range(2):
-            motive.update()
-
-        markers = motive.get_unident_markers()
-        markers = list(markers)# if marker[1] < 0.50 and marker[1] > 0.08]
-        if len(markers) == 1:
-            click.echo(markers)
-            x, y = self.curr_pos
-            self.screen_pos.append([x/self.width - 0.5, (y - self.height/2) / self.width])
-            self.marker_pos.append(markers[0])
 
 
 
@@ -146,10 +100,10 @@ def plot2d(img_points, obj_points):
 @cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
 @click.argument('projector_filename', type=click.Path())
-@click.option('--points', default=100, help="Number of data points to collect before estimating position")
+@click.option('--npoints', default=100, help="Number of data points to collect before estimating position")
 @click.option('--fps', default=15, help="Frame rate to update window at.")
 @click.option('--screen', default=1, help='Screen number to display on.')
-def calib_projector(motive_filename, projector_filename, points, fps, screen):
+def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
 
     # Verify inputs
     if not path.splitext(projector_filename)[1]:
@@ -169,14 +123,36 @@ def calib_projector(motive_filename, projector_filename, points, fps, screen):
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[screen]
     pyglet.clock.set_fps_limit(fps)
-    window = PointScanWindow(screen=screen, fullscreen=True, max_points=points)
-    pyglet.app.run()
+    window = pyglet.window.Window(screen=screen, fullscreen=True)
+    window.dispatch_events()
+    gl.glEnable(gl.GL_POINT_SMOOTH)
+    gl.glPointSize(15.)
+
+    screen_pos, marker_pos = [], []
+    for _ in range(npoints):
+        window.clear()
+        x, y = random.randint(0, window.width), random.randint(0, window.height)
+        pyglet.graphics.draw(1, gl.GL_POINTS, ('v2i', (x, y)), ('c3B', (255, 255, 255)))
+        window.flip()
+
+        # Use Motive to detect the projected mesh in 3D space
+        motive.flush_camera_queues()
+        for _ in range(2):
+            motive.update()
+        markers = list(motive.get_unident_markers())
+
+        if len(markers) == 1:
+            click.echo(markers)
+            screen_pos.append([x / window.width - 0.5, (y - window.height / 2) / window.width])
+            marker_pos.extend(markers)
+
+    window.close()
 
     # Run Calibration Algorithm and Plot results
-    model_matrix = calibrate(window.screen_pos, window.marker_pos)
+    model_matrix = calibrate(screen_pos, marker_pos)
     click.echo(model_matrix)
-    plot2d(window.screen_pos, window.marker_pos)
-    plot_estimate(obj_points=window.marker_pos, position=model_matrix[:3, -1], rotation_matrix=np.linalg.inv(model_matrix[:3, :3]))
+    plot2d(screen_pos, marker_pos)
+    plot_estimate(obj_points=marker_pos, position=model_matrix[:3, -1], rotation_matrix=np.linalg.inv(model_matrix[:3, :3]))
 
     # Create RatCAVE Camera for use in the project and save it in a pickle file.
     camera = rc.Camera()

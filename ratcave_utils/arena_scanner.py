@@ -73,18 +73,14 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, scr
         window.clear()
         grid_pos = int(np.cos(t) * 25), int(np.sin(t) * 20)
         points = grid_coords + grid_pos
-        pyglet.graphics.draw(len(grid_coords), pyglet.gl.GL_POINTS,
-            ('v2i', points.flatten())
-        )
+        pyglet.graphics.draw(len(grid_coords), pyglet.gl.GL_POINTS, ('v2i', points.flatten()))
         window.flip()
 
         # Detect Points with Motive
         motive.flush_camera_queues()
         for _ in range(2):
             motive.update()
-
-        markers = motive.get_unident_markers()
-        markers = [marker for marker in markers]# if 0.08 < marker[1] < 0.50]
+        markers = list(motive.get_unident_markers())
 
         click.echo("{} markers detected.".format(len(markers)))
         marker_pos.extend(markers)
