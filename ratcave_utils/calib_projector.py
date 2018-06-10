@@ -23,7 +23,6 @@ import _transformations as trans
 np.set_printoptions(precision=3, suppress=True)
 
 
-
 def calibrate(img_points, obj_points):
     """
     Returns position and rotation arrays by using OpenCV's camera calibration function on image calibration data.
@@ -63,39 +62,6 @@ def calibrate(img_points, obj_points):
     return model_matrix
 
 
-def plot_estimate(obj_points, position, rotation_matrix):
-    """
-    Make a 3D plot of the data and the projector position and direction estimate, just to verify that the estimate
-    makes sense.
-    """
-
-    obj_points = np.array(obj_points)
-    assert obj_points.ndim == 2
-
-    cam_dir = np.dot([0, 0, -1], rotation_matrix) # Rotate from -Z vector (default OpenGL camera direction)
-    rot_vec = np.vstack((position, position+cam_dir))
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(*obj_points.T)
-    ax.plot(*rot_vec.T)
-    plt.show()
-
-
-
-def plot2d(img_points, obj_points):
-    """Verify that the image data and marker data is not random by plotting xy relationship between them."""
-    img_points = np.array(img_points)
-    obj_points = np.array(obj_points)
-    assert img_points.ndim == 2 and obj_points.ndim == 2
-    fig, axes = plt.subplots(ncols=2)
-    for idx in range(2):
-        for obj_coord, label in zip(obj_points.T, 'xyz'):
-            axes[idx].plot(img_points[:,idx], obj_coord, 'o', label=label)
-        axes[idx].legend()
-
-    plt.show()
-
 
 @cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
@@ -128,7 +94,7 @@ def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
     gl.glEnable(gl.GL_POINT_SMOOTH)
     gl.glPointSize(15.)
 
-    screen_pos, marker_pos = [], []
+    img_points, obj_points = [], []
     for _ in range(npoints):
         window.clear()
         x, y = random.randint(0, window.width), random.randint(0, window.height)
@@ -143,16 +109,34 @@ def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
 
         if len(markers) == 1:
             click.echo(markers)
-            screen_pos.append([x / window.width - 0.5, (y - window.height / 2) / window.width])
-            marker_pos.extend(markers)
-
+            img_points.append([x / window.width - 0.5, (y - window.height / 2) / window.width])
+            obj_points.extend(markers)
     window.close()
+    img_points, obj_points = np.array(img_points), np.array(obj_points)
+
+    # Check Data Quality: Plot XY relationship between data
+    fig, axes = plt.subplots(ncols=2)
+    for idx in range(2):
+        for obj_coord, label in zip(obj_points.T, 'xyz'):
+            axes[idx].plot(img_points[:, idx], obj_coord, 'o', label=label)
+        axes[idx].legend()
+    plt.show()
 
     # Run Calibration Algorithm and Plot results
-    model_matrix = calibrate(screen_pos, marker_pos)
+    model_matrix = calibrate(img_points, obj_points)
     click.echo(model_matrix)
-    plot2d(screen_pos, marker_pos)
-    plot_estimate(obj_points=marker_pos, position=model_matrix[:3, -1], rotation_matrix=np.linalg.inv(model_matrix[:3, :3]))
+
+    # Check Model Quality: Make a 3D plot of the data and the projector position and direction estimate
+    position = model_matrix[:3, -1]
+    rotation_matrix = np.linalg.inv(model_matrix[:3, :3])
+    cam_dir = np.dot([0, 0, -1], rotation_matrix)  # Rotate from -Z vector (default OpenGL camera direction)
+    rot_vec = np.vstack((position, position + cam_dir))
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(*obj_points.T)
+    ax.plot(*rot_vec.T)
+    plt.show()
 
     # Create RatCAVE Camera for use in the project and save it in a pickle file.
     camera = rc.Camera()
