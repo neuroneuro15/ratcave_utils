@@ -1,54 +1,13 @@
 import numpy as np
-from scipy import linalg
-from sklearn import mixture
+from scipy import linalg, spatial
+from sklearn.mixture import GaussianMixture
 from sklearn.decomposition import PCA, FastICA
-
-def normal_nearest_neighbors(data, n_neighbors=40):
-    """Find the normal direction of a hopefully-planar cluster of n_neighbors"""
-    from sklearn.neighbors import NearestNeighbors
-
-    # K-Nearest neighbors on whole dataset
-    nbrs = NearestNeighbors(n_neighbors).fit(data)
-
-    _, indices = nbrs.kneighbors(data)
-
-    # PCA on each cluster of k-nearest neighbors
-    latent_all, normal_all = [], []
-    for idx_array in indices:
-
-        pp = PCA(n_components=3).fit(data[idx_array, :])  # Perform PCA
-
-        # Get the percent variance of each component
-        latent_all.append(pp.explained_variance_ratio_)
-
-        # Get the normal of the plane along the third component (flip if pointing in -y direction)
-        normal = pp.components_[2] if pp.components_[2][1] > 0 else -pp.components_[2]
-        normal_all.append(normal)
-
-    # Convert to NumPy Array and return
-    return np.array(normal_all), np.array(latent_all)
-
-
-def cluster_normals(normal_array, min_clusters=4, max_clusters=9):
-    """Returns sklearn model from clustering an NxK array, comparing different numbers of clusters for a best fit."""
-
-    model, old_bic = None, 1e32
-    for n_components in range(min_clusters, max_clusters):
-
-        gmm = mixture.GaussianMixture(n_components=n_components) # Fit the filtered normal data using a gaussian classifier
-        temp_model = gmm.fit(normal_array)
-        temp_bic = temp_model.bic(normal_array)
-        print("N Components: {}\tBIC: {}".format(n_components, temp_bic))
-        model, old_bic = (temp_model, temp_bic) if temp_bic < old_bic else (model, old_bic)
-
-    return model
+from sklearn.neighbors import NearestNeighbors
 
 
 def get_vertices_at_intersections(normals, offsets, ceiling_height):
     """Returns a dict of vertices and normals for each surface intersecton of walls given by the Nx3 arrays of
     normals and offsets."""
-
-    from scipy import spatial
 
     # Calculate d in equation ax + by + cz = d
     dd = np.sum(normals * offsets, axis=1)
@@ -61,7 +20,7 @@ def get_vertices_at_intersections(normals, offsets, ceiling_height):
     # Get neighbors between all walls (excluding the floor, which touches everything.)
     distances = spatial.distance_matrix(wall_normals, wall_normals) + (3 * np.eye(wall_normals.shape[0]))
     neighboring_walls = np.sort(distances.argsort()[:, :2])  # Get the two closest wall indices to each wall
-    neighbors =  {dd: el.tolist() for (dd, el) in enumerate(neighboring_walls)}
+    neighbors = {dd: el.tolist() for (dd, el) in enumerate(neighboring_walls)}
 
     # Solve for intersection between the floor/ceiling and adjacent walls,
     vertices = {wall: [] for wall in range(len(neighbors))}
@@ -78,14 +37,8 @@ def get_vertices_at_intersections(normals, offsets, ceiling_height):
                     floor_verts.append(vertex.tolist())
 
     # Convert vertex lists to dict of NumPy arrays
-
     vertices = np.array([value for value in vertices.values()] + [floor_verts])
-    # vertices = {key: np.array(value) for key, value in vertices.items()}
-    # vertices[len(vertices)] = np.array(floor_verts)
-
     norms = np.vstack((wall_normals, floor_normal))
-    # norms = {key: np.array(value) for key, value in enumerate(wall_normals)}
-    # norms[len(norms)] = np.array(floor_normal)
 
     return vertices, norms
 
@@ -123,8 +76,7 @@ def reorder_vertices(vertices):
 
 def face_index(vertices):
     """Takes an MxNx3 array and returns a 2D vertices and MxN face_indices arrays"""
-    new_verts = []
-    face_indices = []
+    new_verts, face_indices = [], []
     for wall in vertices:
         face_wall = []
         for vert in wall:
@@ -163,9 +115,23 @@ def meshify_arena(points, n_surfaces=None, ceiling_offset=.05):
 
     # Remove Obviously Bad Points according to how far away from main cluster they are
     points_f = points[:]
+    indices = NearestNeighbors(n_neighbors=40).fit(points_f).kneighbors(points_f)[1]
 
-    # Get the normals of the N-Neighborhood around each point, and filter out points with lowish planarity
-    normals_f, explained_variances = normal_nearest_neighbors(points_f)
+    # PCA on each cluster of k-nearest neighbors
+    latents, normals = [], []
+    for neighborhood in (points_f[idx] for idx in indices):
+        pca = PCA(n_components=3).fit(neighborhood)  # Perform PCA
+        latent = pca.explained_variance_ratio_
+        latents.append(latent)  # Get the percent variance of each component
+
+        # Get the normal of the plane along the third component (flip if pointed downward)
+        normal = pca.components_[2] if pca.components_[2][1] > 0 else -pca.components_[2]
+        normals.append(normal)
+
+    # Convert to NumPy Array and return
+    normals_f, explained_variances = np.array(normals), np.array(latents)
+
+    ###################################################################
 
     # Histogram filter: take the 70% best-planar data to model.
     ll = explained_variances[:, 2]
@@ -174,24 +140,18 @@ def meshify_arena(points, n_surfaces=None, ceiling_offset=.05):
     normals_ff = normals_f[normfilter, :]
 
     # Fit the filtered normal data using a gaussian classifier.
-    model = cluster_normals(normals_ff,
-                            min_clusters=n_surfaces if n_surfaces else 4,
-                            max_clusters=n_surfaces + 1 if n_surfaces else 15)
+    best_model = None
+    for n_components in range(n_surfaces if n_surfaces else 5, n_surfaces + 1 if n_surfaces else 15):
+        model = GaussianMixture(n_components=n_components).fit(normals_ff)
+        print("N Components: {}\tBIC: {}".format(n_components, model.bic))
+        best_model = model if type(best_model) == type(None) or model.bic < best_model.bic else best_model
+    model = best_model
 
-    # Get normals from model means
-    surface_normals = model.means_  # n_components x 3 normals array, giving mean normal for each surface.
+    surface_normals = model.means_  # Get normals from model means
 
     # Calculate mean offset of vertices for each wall
-    ids = model.predict(normals_ff)  # index for each point, giving the wall id number (0:n_components)
-
-    #
-    surface_offsets = np.array([np.nanmean(points_ff[ids == idx], axis=0) for idx in range(ids.max() + 1)])
-    # surface_offsets = np.zeros_like(surface_normals)
-    # for idx, _ in enumerate(surface_normals):
-    #
-    #     surface_offsets[idx, :] = np.mean(points_ff[ids==idx, :], axis=0)
-    # assert not np.isnan(surface_offsets.sum()), "Incorrect model: No Points found to assign to at least one wall for intersection calculation."
-
+    clusters = model.predict(normals_ff)  # index for each point, giving the wall id number (0:n_components)
+    surface_offsets = np.array([np.nanmean(points_ff[clusters == cluster], axis=0) for cluster in np.unique(clusters)])
 
     ## CALCULATE PLANE INTERSECTIONS TO GET VERTICES ##
     vertices, normals = get_vertices_at_intersections(surface_normals, surface_offsets, points_ff[:, 1].max() + ceiling_offset)
