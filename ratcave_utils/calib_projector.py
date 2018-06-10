@@ -6,7 +6,7 @@ import pickle
 from os import path
 
 import click
-# import cv2
+import cv2
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
@@ -109,7 +109,7 @@ def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
 
         if len(markers) == 1:
             click.echo(markers)
-            img_points.append([x / window.width - 0.5, (y - window.height / 2) / window.width])
+            img_points.append([x / float(window.width) - 0.5, (y - float(window.height) / 2.) / window.width])
             obj_points.extend(markers)
     window.close()
     img_points, obj_points = np.array(img_points), np.array(obj_points)
@@ -126,19 +126,13 @@ def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
     model_matrix = calibrate(img_points, obj_points)
     click.echo(model_matrix)
 
-    # Check Model Quality: Make a 3D plot of the data and the projector position and direction estimate
+    # Create RatCAVE Camera for use in the project and save it in a pickle file.
     position = model_matrix[:3, -1]
     rotation_matrix = np.linalg.inv(model_matrix[:3, :3])
     cam_dir = np.dot([0, 0, -1], rotation_matrix)  # Rotate from -Z vector (default OpenGL camera direction)
     rot_vec = np.vstack((position, position + cam_dir))
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(*obj_points.T)
-    ax.plot(*rot_vec.T)
-    plt.show()
 
-    # Create RatCAVE Camera for use in the project and save it in a pickle file.
     camera = rc.Camera()
     camera.position.xyz = model_matrix[:3, -1]
     camera.rotation = camera.rotation.from_matrix(model_matrix)
@@ -147,6 +141,17 @@ def calib_projector(motive_filename, projector_filename, npoints, fps, screen):
     camera.projection.update()
     click.echo(camera.position)
     click.echo(camera.rotation)
+    click.echo(camera.orientation)
+
+    # Check Model Quality: Make a 3D plot of the data and the projector position and direction estimate
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(*obj_points.T)
+    ax.plot(*rot_vec.T)
+    ax.scatter(*camera.position.xyz)
+    plt.show()
+
+
 
     with open(projector_filename, 'wb') as f:
         pickle.dump(camera, f)

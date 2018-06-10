@@ -20,7 +20,8 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
 
     with open(projector_filename) as f:
         camera = pickle.load(f)
-    camera.projection.fov_y = 39
+    camera.projection.fov_y = 125#39
+    camera.projection.z_far = 10.
     light = rc.Light(position=(camera.position.xyz))
 
     root = rc.EmptyEntity()
