@@ -7,12 +7,11 @@ import motive
 import numpy as np
 import pyglet
 import pyglet.gl as gl
-import ratcave as rc
 from os import path
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from wavefront_reader import WavefrontWriter
-
+import itertools as it
 from . import cli
 
 from _transformations import rotation_matrix
@@ -30,24 +29,21 @@ class GridScanWindow(pyglet.window.Window):
         """
         super(GridScanWindow, self).__init__(*args, **kwargs)
 
-        wavefront_reader = rc.WavefrontReader(rc.resources.obj_primitives)
-        self.mesh = wavefront_reader.get_mesh('Grid', position=[0., 0., -1.], scale=1.5)
-        self.mesh.drawmode = rc.POINTS
-        self.mesh.gl_states = (gl.GL_POINT_SMOOTH,)
-        self.mesh.uniforms['diffuse'] = [1., 1., 1.]  # Make white
-        self.mesh.uniforms['flat_shading'] = False
+        self.grid_pos = np.array([0, 0], dtype=int)
+        self.t = 0.
+        self.grid_coords = np.array(list(it.product(*(range(0, 2000, 50),)*2)), dtype=int)
 
-        self.scene = rc.Scene([self.mesh], bgColor=(0, 0, 0))
-        self.scene.camera.ortho_mode = True
+        print(self.grid_coords)
 
 
-        dist = .06
-        self.cam_positions = ((dist * np.sin(ang), dist * np.cos(ang), 0) for ang in np.linspace(0, 2*np.pi, 20)[:-1])
+
+        # dist = .06
+        # self.cam_positions = ((dist * np.sin(ang), dist * np.cos(ang), 0) for ang in np.linspace(0, 2*np.pi, 20)[:-1])
 
         self.marker_pos = []
-        pyglet.clock.schedule(self.detect_projection_point)
-        pyglet.clock.schedule(self.move_camera)
-
+        # pyglet.clock.schedule(self.detect_projection_point)
+        # pyglet.clock.schedule(self.move_camera)
+        pyglet.clock.schedule(lambda dt: dt)
     def move_camera(self, dt):
         """Randomly moves the mesh center to somewhere between xlim and ylim"""
         try:
@@ -59,9 +55,15 @@ class GridScanWindow(pyglet.window.Window):
 
     def on_draw(self):
         """Render the scene!"""
-        with rc.default_shader:
-            gl.glPointSize(3.)
-            self.scene.draw()
+        self.clear()
+        gl.glEnable(gl.GL_POINT_SMOOTH)
+        gl.glPointSize(6.)
+        self.t += .016
+        self.grid_pos = int(np.cos(self.t) * 25), int(np.sin(self.t) * 25)
+        points = self.grid_coords + self.grid_pos
+        pyglet.graphics.draw(len(self.grid_coords), pyglet.gl.GL_POINTS,
+            ('v2i', points.flatten())
+        )
 
     def detect_projection_point(self, dt):
         """Use Motive to detect the projected mesh in 3D space"""
