@@ -29,6 +29,7 @@ def view_mesh(body, obj_filename):
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[0]
     window = pyglet.window.Window(fullscreen=True, screen=screen)
+    window.set_exclusive_mouse(True)
 
     label = pyglet.text.Label()
 
@@ -51,9 +52,9 @@ def view_mesh(body, obj_filename):
 
     @window.event
     def on_mouse_motion(x, y, dx, dy):
-        x, y = x / float(window.width) - .5, y / float(window.height) - .5
-        mesh.rotation.x = -360 * y
-        mesh.rotation.y = 360 * x
+        x, y = dx / float(window.width), dy / float(window.height)
+        mesh.rotation.x += -360 * y
+        mesh.rotation.y += 360 * x
 
     @window.event
     def on_mouse_scroll(x, y, scroll_x, scroll_y):

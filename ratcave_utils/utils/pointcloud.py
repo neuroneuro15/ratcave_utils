@@ -35,7 +35,7 @@ def cluster_normals(normal_array, min_clusters=4, max_clusters=9):
     model, old_bic = None, 1e32
     for n_components in range(min_clusters, max_clusters):
 
-        gmm = mixture.GMM(n_components=n_components) # Fit the filtered normal data using a gaussian classifier
+        gmm = mixture.GaussianMixture(n_components=n_components) # Fit the filtered normal data using a gaussian classifier
         temp_model = gmm.fit(normal_array)
         temp_bic = temp_model.bic(normal_array)
         print("N Components: {}\tBIC: {}".format(n_components, temp_bic))

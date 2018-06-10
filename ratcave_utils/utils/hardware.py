@@ -1,4 +1,5 @@
 import motive
+from motive import Camera
 
 def motive_camera_vislight_configure():
 
@@ -8,7 +9,7 @@ def motive_camera_vislight_configure():
         cam.frame_rate = 30
 
         if 'Prime 13' in cam.name:
-            cam.settings = motive.CameraSettings(video_mode=2, exposure=33000, threshold=200, intensity=0)
+            cam.settings = motive.CameraSettings(video_mode=Camera.OBJECT_MODE, exposure=33000, threshold=200, intensity=0)
             cam.image_gain = 5  # 8 is the maximum image gain setting
             cam.set_filter_switch(False)
         else:

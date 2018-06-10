@@ -3,7 +3,7 @@ import pyglet
 import ratcave as rc
 from . import cli
 from pyglet.window import key, FPSDisplay
-
+import pickle
 
 @cli.command()
 @click.argument('motive_filename', type=click.Path(exists=True))
@@ -18,7 +18,8 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
     arena.rotation = arena.rotation.to_quaternion()
     print('Arena Loaded. Position: {}, Rotation: {}'.format(arena.position, arena.rotation))
 
-    camera = rc.Camera.from_pickle(projector_filename)
+    with open(projector_filename) as f:
+        camera = pickle.load(f)
     camera.projection.fov_y = 39
     light = rc.Light(position=(camera.position.xyz))
 
@@ -32,7 +33,7 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
                      camera=camera,
                      light=light,
                      bgColor=(.2, .4, .2))
-    scene.gl_states = scene.gl_states[:-1]
+    #scene.gl_states = scene.gl_states[:-1]
 
     display = pyglet.window.get_platform().get_default_display()
     screen = display.get_screens()[screen]
@@ -41,11 +42,9 @@ def view_arenafit(motive_filename, projector_filename, arena_filename, screen):
     label = pyglet.text.Label()
     fps_display = FPSDisplay(window)
 
-    shader = rc.Shader.from_file(*rc.resources.genShader)
-
     @window.event
     def on_draw():
-        with shader:
+        with rc.default_shader:
             scene.draw()
         # label.draw()
         # window.clear()

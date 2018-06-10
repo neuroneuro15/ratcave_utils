@@ -35,15 +35,14 @@ class GridScanWindow(pyglet.window.Window):
         self.mesh.drawmode = rc.POINTS
         self.mesh.gl_states = (gl.GL_POINT_SMOOTH,)
         self.mesh.uniforms['diffuse'] = [1., 1., 1.]  # Make white
-        self.mesh.uniforms['flat_shading'] = True
+        self.mesh.uniforms['flat_shading'] = False
 
         self.scene = rc.Scene([self.mesh], bgColor=(0, 0, 0))
         self.scene.camera.ortho_mode = True
 
-        self.shader = rc.Shader.from_file(*rc.resources.genShader)
 
         dist = .06
-        self.cam_positions = ((dist * np.sin(ang), dist * np.cos(ang), 0) for ang in np.linspace(0, 2*np.pi, 40)[:-1])
+        self.cam_positions = ((dist * np.sin(ang), dist * np.cos(ang), 0) for ang in np.linspace(0, 2*np.pi, 20)[:-1])
 
         self.marker_pos = []
         pyglet.clock.schedule(self.detect_projection_point)
@@ -60,8 +59,8 @@ class GridScanWindow(pyglet.window.Window):
 
     def on_draw(self):
         """Render the scene!"""
-        with self.shader:
-            gl.glPointSize(10.)
+        with rc.default_shader:
+            gl.glPointSize(3.)
             self.scene.draw()
 
     def detect_projection_point(self, dt):
@@ -106,13 +105,14 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, scr
     assert body in rigid_bodies, "RigidBody {} not found in project file.  Available body names: {}".format(body, list(rigid_bodies.keys()))
     # assert len(rigid_bodies[body].markers) > 5, "At least 6 markers in the arena's rigid body is required. Only {} found".format(len(rigid_bodies[body].markers))
 
-    for el in range(3):
-        rigid_bodies[body].reset_orientation()
-        rigid_bodies[body].reset_pivot_offset()
-        motive.update()
-    assert np.isclose(np.array(rigid_bodies[body].rotation), 0).all(), "Orientation didn't reset."
-    assert np.isclose(np.array(rigid_bodies[body].location), np.mean(rigid_bodies[body].point_cloud_markers, axis=0)).all(), "Pivot didn't reset."
-    print("Location and Orientation Successfully reset.")
+    #### Removed for now, but necessary!!!
+    #for el in range(3):
+    #    rigid_bodies[body].reset_orientation()
+    #    rigid_bodies[body].reset_pivot_offset()
+    #    motive.update()
+    #assert np.isclose(np.array(rigid_bodies[body].rotation), 0).all(), "Orientation didn't reset."
+    #assert np.isclose(np.array(rigid_bodies[body].location), np.mean(rigid_bodies[body].point_cloud_markers, axis=0)).all(), "Pivot didn't reset."
+    #print("Location and Orientation Successfully reset.")
 
     # Scan points
     display = pyglet.window.get_platform().get_default_display()
@@ -123,15 +123,20 @@ def scan_arena(motive_filename, output_filename, body, nomeancenter, nsides, scr
     assert(len(points) > 100), "Only {} points detected.  Tracker is not detecting enough points to model.  Is the projector turned on?".format(len(points))
     assert points.ndim == 2
 
-    # Plot preview of data collected
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(*points.T)
-    plt.show()
+
 
     # Get vertex positions and normal directions from the collected data.
     vertices, normals = pointcloud.meshify_arena(points, n_surfaces=nsides)
     vertices, face_indices = pointcloud.face_index(vertices)
+
+    # Plot preview of data collected
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(*points.T, s=.5, alpha=.5)
+    ax.scatter(*vertices.T, s=5., alpha=.6, c='r')
+    plt.show()
+
+
     face_indices = pointcloud.fan_triangulate(face_indices)
 
 

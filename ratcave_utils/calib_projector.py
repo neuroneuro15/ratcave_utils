@@ -1,5 +1,6 @@
 __author__ = 'nickdg'
 
+import sys
 import random
 import pickle
 from os import path
@@ -10,6 +11,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import pyglet
+import pyglet.gl as gl
 
 import motive
 import ratcave as rc
@@ -32,44 +34,25 @@ class PointScanWindow(pyglet.window.Window):
 
         """
         super(PointScanWindow, self).__init__(*args, **kwargs)
-
-        wavefront_reader = rc.WavefrontReader(rc.resources.obj_primitives)
-        self.mesh = wavefront_reader.get_mesh('Sphere', position=[0., 0., -1.], scale=.005)
-        self.mesh.uniforms['diffuse'] = [1., 1., 1.]  # Make white
-        self.mesh.uniforms['flat_shading'] = True
-
-        self.scene = rc.Scene(meshes=[self.mesh], bgColor=(0, 0, 0))
-        self.scene.camera.projection = rc.OrthoProjection(origin='center', coords='relative')
-
+        gl.glPointSize(20)
+        gl.glEnable(gl.GL_POINT_SMOOTH)
+        self.curr_pos = 0, 0
+        
         self.max_points = max_points
         self.screen_pos = []
         self.marker_pos = []
         pyglet.clock.schedule(self.detect_projection_point)
         pyglet.clock.schedule(self._close_if_max_points_reached)
 
-        self.shader = rc.Shader.from_file(*rc.resources.genShader)
-
     def _close_if_max_points_reached(self, dt):
         if len(self.screen_pos) >= self.max_points:
             self.close()
 
-    def randomly_move_point(self, xlim=(-.5, .5), ylim=(-.4, .4)):
-        """Randomly moves the mesh center to somewhere between xlim and ylim"""
-        for attr, lims in zip('xy', (xlim, ylim)):
-            limrange = max(lims) - min(lims)
-            newpos = limrange * random.random() - (limrange / 2)
-            setattr(self.mesh.position, attr, newpos)
-
     def on_draw(self):
         """Move the mesh, then draw it!"""
-        self.randomly_move_point()
-        with self.shader:
-            self.scene.draw()
-
-    def on_resize(self, width, height):
-        """On resize, save width and height for later use."""
-        self.vpwidth = width
-        self.vpheight = height
+        self.clear()
+        self.curr_pos = random.randint(0, self.width), random.randint(0, self.height)
+        pyglet.graphics.draw(1, gl.GL_POINTS, ('v2i', self.curr_pos), ('c3B', (255, 255, 255)))
 
     def detect_projection_point(self, dt):
         """Use Motive to detect the projected mesh in 3D space"""
@@ -78,10 +61,11 @@ class PointScanWindow(pyglet.window.Window):
             motive.update()
 
         markers = motive.get_unident_markers()
-        markers = [marker for marker in markers]# if marker[1] < 0.50 and marker[1] > 0.08]
+        markers = list(markers)# if marker[1] < 0.50 and marker[1] > 0.08]
         if len(markers) == 1:
             click.echo(markers)
-            self.screen_pos.append([self.mesh.position.x, self.mesh.position.y])
+            x, y = self.curr_pos
+            self.screen_pos.append([x/self.width - 0.5, (y - self.height/2) / self.width])
             self.marker_pos.append(markers[0])
 
 
@@ -168,11 +152,12 @@ def plot2d(img_points, obj_points):
 def calib_projector(motive_filename, projector_filename, points, fps, screen):
 
     # Verify inputs
-    projector_filename = projector_filename.encode()
     if not path.splitext(projector_filename)[1]:
         projector_filename += '.pickle'
+    projector_filename = projector_filename.encode()
 
-    motive_filename = motive_filename.encode()
+    if sys.version_info.major == 2:
+        motive_filename = motive_filename.encode()
 
     # Collect Data
     motive.initialize()
@@ -198,7 +183,7 @@ def calib_projector(motive_filename, projector_filename, points, fps, screen):
     camera.position.xyz = model_matrix[:3, -1]
     camera.rotation = camera.rotation.from_matrix(model_matrix)
     camera.update()
-    camera.projection.fov_y = .0338 * window.vpheight + 4.47  # Calculated just for our projector.
+    camera.projection.fov_y = .0338 * window.height + 4.47  # Calculated just for our projector.
     camera.projection.update()
     click.echo(camera.position)
     click.echo(camera.rotation)
