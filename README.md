@@ -3,18 +3,33 @@ Command-line utility programs for scanning, calibrating, and debugging the ratCA
 
 Once installed, all programs can be run from the command line (see examples below).
 Almost all programs require a Motive Project File (.ttp) as a first argument.
-Help text for each program is available throught the "--help" option.
+Help text for each program is available through the "--help" option.
 
 ## Installation
 
-Download the source from github and install from the setup.py file:
+Download the source from github, install all dependencies with conda using the environment.yml file,
+and install from the setup.py file into the newly-created conda environment:
 
 ```bash
+git clone https://www.github.com/ratcave/ratcave_utils.git
 cd ratcave_utils
+conda env create -f environment.yml
+activate rcutils
 python setup.py install
+deactivate
 ```
 
-After installing, To see what commands are available, simply type the following to get a list of available commands:
+These steps can also be found in the the dos script **intall_all.cmd**
+
+## Usage
+
+These tools are available in any command window with the 'rcutils' environment active.  To activate it, type:
+
+```bash
+activate rcutils
+```
+
+To see what commands are available, simply type the following to get a list of available commands:
 
 ```bash
 ratcave_utils
