@@ -14,4 +14,4 @@ dependencies:
     - wavefront_reader
     - git+https://github.com/ratcave/ratcave.git
     - natnetclient
-    - git+https://github.com/nickdelgrosso/motivepy.git
+    - git+https://github.com/ratcave/motivepy.git
