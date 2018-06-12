@@ -1,0 +1,17 @@
+name: rcutils
+channels:
+  - conda-forge
+dependencies:
+  - python=2.7
+  - cython
+  - opencv=2.4
+  - scipy
+  - matplotlib
+  - scikit-learn
+  - click
+  - pyglet
+  - pip:
+    - wavefront_reader
+    - git+https://github.com/ratcave/ratcave.git
+    - natnetclient
+    - git+https://github.com/nickdelgrosso/motivepy.git
