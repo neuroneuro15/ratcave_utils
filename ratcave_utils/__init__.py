@@ -18,7 +18,5 @@ from . import calib_projector
 from . import view_mesh
 from . import dots_test
 from . import view_arenafit
-#from . import vr_demo
+from . import vr_demo
 #from . import utils
-#from . import latency_test
-#from .logging import Logger
