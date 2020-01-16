@@ -1,7 +1,7 @@
 import wavefront_reader
 import numpy as np
 from sklearn.decomposition import PCA
-import ratcave as rc
+
 
 def arena_obj_to_transformation(objfile, object="Arena"):
     """Returns the 3x3 rotation matrix and 1x3 translation array for the "object" object in the objfile, using PCA."""
@@ -16,6 +16,7 @@ def arena_obj_to_transformation(objfile, object="Arena"):
 
 def make_arena_coords_obj(rotmat, translation):
     """Should (untested!!!) return a ratcave object with the transformation values applied."""
+    import ratcave as rc
     mesh = rc.EmptyMesh()
     mesh.position.xyz = translation
     mesh.rotation = rc.RotationEuler.from_matrix(rotmat)\
@@ -25,6 +26,7 @@ def make_arena_coords_obj(rotmat, translation):
 
 # Example usage below (maybe needs some tweaking--untested):
 if __name__ == "__main__":
+    import ratcave as rc
     objfile = "arena.obj"
     arena = rc.read_wavefront(objfile).get_mesh("Arena")
     
